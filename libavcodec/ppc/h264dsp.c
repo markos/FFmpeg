@@ -388,34 +388,79 @@ static void h264_idct_add8_altivec(uint8_t **dest, const int *block_offset,
     r3 = vec_mergel(r5, r7);  /*all set 3*/  \
 }
 
+#define write16x1_altivec_unaligned(v, al, dst, stride) { \
+       vec_ste(v, al, dst);                               \
+       vec_ste(v, al+2, dst);                             \
+       v = vec_sld(v, v, 4);                              \
+       dst += stride;                                     \
+       vec_ste(v, al, dst);                               \
+       vec_ste(v, al+2, dst);                             \
+       v = vec_sld(v, v, 4);                              \
+       dst += stride;                                     \
+       vec_ste(v, al, dst);                               \
+       vec_ste(v, al+2, dst);                             \
+       v = vec_sld(v, v, 4);                              \
+       dst += stride;                                     \
+       vec_ste(v, al, dst);                               \
+       vec_ste(v, al+2, dst);                             \
+       dst += stride; }
+
+
 static inline void write16x4(uint8_t *dst, int dst_stride,
                              register vec_u8 r0, register vec_u8 r1,
                              register vec_u8 r2, register vec_u8 r3) {
-    DECLARE_ALIGNED(16, unsigned char, result)[64];
-    uint32_t *src_int = (uint32_t *)result, *dst_int = (uint32_t *)dst;
-    int int_dst_stride = dst_stride/4;
 
-    vec_st(r0, 0, result);
-    vec_st(r1, 16, result);
-    vec_st(r2, 32, result);
-    vec_st(r3, 48, result);
-    /* FIXME: there has to be a better way!!!! */
-    *dst_int = *src_int;
-    *(dst_int+   int_dst_stride) = *(src_int + 1);
-    *(dst_int+ 2*int_dst_stride) = *(src_int + 2);
-    *(dst_int+ 3*int_dst_stride) = *(src_int + 3);
-    *(dst_int+ 4*int_dst_stride) = *(src_int + 4);
-    *(dst_int+ 5*int_dst_stride) = *(src_int + 5);
-    *(dst_int+ 6*int_dst_stride) = *(src_int + 6);
-    *(dst_int+ 7*int_dst_stride) = *(src_int + 7);
-    *(dst_int+ 8*int_dst_stride) = *(src_int + 8);
-    *(dst_int+ 9*int_dst_stride) = *(src_int + 9);
-    *(dst_int+10*int_dst_stride) = *(src_int + 10);
-    *(dst_int+11*int_dst_stride) = *(src_int + 11);
-    *(dst_int+12*int_dst_stride) = *(src_int + 12);
-    *(dst_int+13*int_dst_stride) = *(src_int + 13);
-    *(dst_int+14*int_dst_stride) = *(src_int + 14);
-    *(dst_int+15*int_dst_stride) = *(src_int + 15);
+    int int_dst_stride = dst_stride/4;
+    size_t dst_al = (size_t)(dst)%16;
+    uint16_t *dst_int16 = (uint16_t *)(dst-dst_al);
+    vec_u16 v;
+
+    switch(dst_al) {
+    case 2:
+       v = (vec_u16) vec_sld(r0, r0, 14);
+       write16x1_altivec_unaligned(v, 2, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r1, r1, 14);
+       write16x1_altivec_unaligned(v, 2, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r2, r2, 14);
+       write16x1_altivec_unaligned(v, 2, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r3, r3, 14);
+       write16x1_altivec_unaligned(v, 2, dst_int16, 2*int_dst_stride);
+       break;
+    case 6:
+       v = (vec_u16) vec_sld(r0, r0, 10);
+       write16x1_altivec_unaligned(v, 6, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r1, r1, 10);
+       write16x1_altivec_unaligned(v, 6, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r2, r2, 10);
+       write16x1_altivec_unaligned(v, 6, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r3, r3, 10);
+       write16x1_altivec_unaligned(v, 6, dst_int16, 2*int_dst_stride);
+       break;
+    case 10:
+       v = (vec_u16) vec_sld(r0, r0, 6);
+       write16x1_altivec_unaligned(v, 10, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r1, r1, 6);
+       write16x1_altivec_unaligned(v, 10, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r2, r2, 6);
+       write16x1_altivec_unaligned(v, 10, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r3, r3, 6);
+       write16x1_altivec_unaligned(v, 10, dst_int16, 2*int_dst_stride);
+       break;
+    case 14:
+       v = (vec_u16) vec_sld(r0, r0, 2);
+       write16x1_altivec_unaligned(v, 14, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r1, r1, 2);
+       write16x1_altivec_unaligned(v, 14, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r2, r2, 2);
+       write16x1_altivec_unaligned(v, 14, dst_int16, 2*int_dst_stride);
+       v = (vec_u16) vec_sld(r3, r3, 2);
+       write16x1_altivec_unaligned(v, 14, dst_int16, 2*int_dst_stride);
+       break;
+    default:
+       printf("ERROR! Unhandled alignment: %d\n", dst_al);
+       exit(1);
+       break;
+    }
 }
 
 /** @brief performs a 6x16 transpose of data in src, and stores it to dst
