@@ -192,19 +192,17 @@ static void OPNAME ## h264_qpel ## SIZE ## _mc32_ ## CODETYPE(uint8_t *dst, cons
 }\
 
 #if HAVE_BIGENDIAN
-#define put_unligned_store(s, dest) {    \
-    tmp1 = vec_ld(0, dest);              \
-    mask = vec_lvsl(0, dest);            \
-    tmp2 = vec_ld(15, dest);             \
-    edges = vec_perm(tmp2, tmp1, mask);  \
-    align = vec_lvsr(0, dest);           \
-    tmp2 = vec_perm(s, edges, align);    \
-    tmp1 = vec_perm(edges, s, align);    \
-    vec_st(tmp2, 15, dest);              \
-    vec_st(tmp1, 0 , dest);              \
+#define put_unaligned_store_with_mask_align(s, dest, mask, align) { \
+    tmp1 = vec_ld(0, dest);                                         \
+    tmp2 = vec_ld(15, dest);                                        \
+    edges = vec_perm(tmp2, tmp1, mask);                             \
+    tmp2 = vec_perm(s, edges, align);                               \
+    tmp1 = vec_perm(edges, s, align);                               \
+    vec_st(tmp2, 15, dest);                                         \
+    vec_st(tmp1, 0 , dest);                                         \
  }
 #else
-#define put_unligned_store(s, dest) vec_vsx_st(s, 0, dest);
+#define put_unaligned_store(s, dest) vec_vsx_st(s, 0, dest);
 #endif /* HAVE_BIGENDIAN */
 
 static inline void put_pixels16_l2_altivec( uint8_t * dst, const uint8_t * src1,
@@ -212,36 +210,37 @@ static inline void put_pixels16_l2_altivec( uint8_t * dst, const uint8_t * src1,
                                     int src_stride1, int h)
 {
     int i;
-    vec_u8 a, b, d, mask_;
+    vec_u8 a, b, d, mask1, mask2;
 #if HAVE_BIGENDIAN
     vec_u8 tmp1, tmp2, mask, edges, align;
-    mask_ = vec_lvsl(0, src2);
+    mask1 = vec_lvsl(0, src1);
+    mask2 = vec_lvsl(0, src2);
+    mask  = vec_lvsl(0, dst);
+    align = vec_lvsr(0, dst);
 #endif
 
     for (i = 0; i < h; i++) {
-        a = unaligned_load(i * src_stride1, src1);
-        b = load_with_perm_vec(i * 16, src2, mask_);
+        a = load_with_perm_vec(i * src_stride1, src1, mask1);
+        b = load_with_perm_vec(i * 16, src2, mask2);
         d = vec_avg(a, b);
-        put_unligned_store(d, dst);
+        put_unaligned_store_with_mask_align(d, dst, mask, align);
         dst += dst_stride;
     }
 }
 
 #if HAVE_BIGENDIAN
-#define avg_unligned_store(s, dest){            \
-    tmp1 = vec_ld(0, dest);                     \
-    mask = vec_lvsl(0, dest);                   \
-    tmp2 = vec_ld(15, dest);                    \
-    a = vec_avg(vec_perm(tmp1, tmp2, mask), s); \
-    edges = vec_perm(tmp2, tmp1, mask);         \
-    align = vec_lvsr(0, dest);                  \
-    tmp2 = vec_perm(a, edges, align);           \
-    tmp1 = vec_perm(edges, a, align);           \
-    vec_st(tmp2, 15, dest);                     \
-    vec_st(tmp1, 0 , dest);                     \
+#define avg_unaligned_store_with_mask_align(s, dest, mask, align){ \
+    tmp1 = vec_ld(0, dest);                                        \
+    tmp2 = vec_ld(15, dest);                                       \
+    a = vec_avg(vec_perm(tmp1, tmp2, mask), s);                    \
+    edges = vec_perm(tmp2, tmp1, mask);                            \
+    tmp2 = vec_perm(a, edges, align);                              \
+    tmp1 = vec_perm(edges, a, align);                              \
+    vec_st(tmp2, 15, dest);                                        \
+    vec_st(tmp1, 0 , dest);                                        \
  }
 #else
-#define avg_unligned_store(s, dest){            \
+#define avg_unaligned_store(s, dest){            \
     a = vec_avg(vec_vsx_ld(0, dst), s);         \
     vec_vsx_st(a, 0, dst);                      \
  }
@@ -252,18 +251,22 @@ static inline void avg_pixels16_l2_altivec( uint8_t * dst, const uint8_t * src1,
                                     int src_stride1, int h)
 {
     int i;
-    vec_u8 a, b, d, mask_;
+    vec_u8 a, b, d, mask1, mask2;
 
 #if HAVE_BIGENDIAN
     vec_u8 tmp1, tmp2, mask, edges, align;
-    mask_ = vec_lvsl(0, src2);
+    mask1 = vec_lvsl(0, src1);
+    mask2 = vec_lvsl(0, src2);
+    mask  = vec_lvsl(0, dst);
+    align = vec_lvsr(0, dst);
 #endif
 
+    mask1 = vec_lvsl(0, src1);
     for (i = 0; i < h; i++) {
-        a = unaligned_load(i * src_stride1, src1);
-        b = load_with_perm_vec(i * 16, src2, mask_);
+        a = load_with_perm_vec(i * src_stride1, src1, mask1);
+        b = load_with_perm_vec(i * 16, src2, mask2);
         d = vec_avg(a, b);
-        avg_unligned_store(d, dst);
+        avg_unaligned_store_with_mask_align(d, dst, mask, align);
         dst += dst_stride;
     }
 }
