@@ -223,8 +223,9 @@ static void h264_idct8_add_altivec(uint8_t *dst, int16_t *dct, int stride)
     const vec_u16 twov = vec_splat_u16(2);
     const vec_u16 sixv = vec_splat_u16(6);
 
-    const vec_u8 sel = (vec_u8) {0,0,0,0,0,0,0,0,-1,-1,-1,-1,-1,-1,-1,-1};
     LOAD_ZERO;
+    const vec_u8 minusonev = (vec_u8)vec_splat_s8(-1);
+    const vec_u8 sel = vec_sld(zerov, minusonev, 8);
 
     dct[0] += 32; // rounding for the >>6 at the end
 
@@ -463,66 +464,65 @@ static inline void write16x4(uint8_t *dst, int dst_stride,
     }
 }
 
-/** @brief performs a 6x16 transpose of data in src, and stores it to dst
-    @todo FIXME: see if we can't spare some vec_lvsl() by them factorizing
-    out of unaligned_load() */
-#define readAndTranspose16x6(src, src_stride, r8, r9, r10, r11, r12, r13) {\
-    register vec_u8 r0  = unaligned_load(0,             src);            \
-    register vec_u8 r1  = unaligned_load(   src_stride, src);            \
-    register vec_u8 r2  = unaligned_load(2* src_stride, src);            \
-    register vec_u8 r3  = unaligned_load(3* src_stride, src);            \
-    register vec_u8 r4  = unaligned_load(4* src_stride, src);            \
-    register vec_u8 r5  = unaligned_load(5* src_stride, src);            \
-    register vec_u8 r6  = unaligned_load(6* src_stride, src);            \
-    register vec_u8 r7  = unaligned_load(7* src_stride, src);            \
-    register vec_u8 r14 = unaligned_load(14*src_stride, src);            \
-    register vec_u8 r15 = unaligned_load(15*src_stride, src);            \
-                                                                           \
-    r8  = unaligned_load( 8*src_stride, src);                              \
-    r9  = unaligned_load( 9*src_stride, src);                              \
-    r10 = unaligned_load(10*src_stride, src);                              \
-    r11 = unaligned_load(11*src_stride, src);                              \
-    r12 = unaligned_load(12*src_stride, src);                              \
-    r13 = unaligned_load(13*src_stride, src);                              \
-                                                                           \
-    /*Merge first pairs*/                                                  \
-    r0 = vec_mergeh(r0, r8);    /*0, 8*/                                   \
-    r1 = vec_mergeh(r1, r9);    /*1, 9*/                                   \
-    r2 = vec_mergeh(r2, r10);   /*2,10*/                                   \
-    r3 = vec_mergeh(r3, r11);   /*3,11*/                                   \
-    r4 = vec_mergeh(r4, r12);   /*4,12*/                                   \
-    r5 = vec_mergeh(r5, r13);   /*5,13*/                                   \
-    r6 = vec_mergeh(r6, r14);   /*6,14*/                                   \
-    r7 = vec_mergeh(r7, r15);   /*7,15*/                                   \
-                                                                           \
-    /*Merge second pairs*/                                                 \
-    r8  = vec_mergeh(r0, r4);   /*0,4, 8,12 set 0*/                        \
-    r9  = vec_mergel(r0, r4);   /*0,4, 8,12 set 1*/                        \
-    r10 = vec_mergeh(r1, r5);   /*1,5, 9,13 set 0*/                        \
-    r11 = vec_mergel(r1, r5);   /*1,5, 9,13 set 1*/                        \
-    r12 = vec_mergeh(r2, r6);   /*2,6,10,14 set 0*/                        \
-    r13 = vec_mergel(r2, r6);   /*2,6,10,14 set 1*/                        \
-    r14 = vec_mergeh(r3, r7);   /*3,7,11,15 set 0*/                        \
-    r15 = vec_mergel(r3, r7);   /*3,7,11,15 set 1*/                        \
-                                                                           \
-    /*Third merge*/                                                        \
-    r0 = vec_mergeh(r8,  r12);  /*0,2,4,6,8,10,12,14 set 0*/               \
-    r1 = vec_mergel(r8,  r12);  /*0,2,4,6,8,10,12,14 set 1*/               \
-    r2 = vec_mergeh(r9,  r13);  /*0,2,4,6,8,10,12,14 set 2*/               \
-    r4 = vec_mergeh(r10, r14);  /*1,3,5,7,9,11,13,15 set 0*/               \
-    r5 = vec_mergel(r10, r14);  /*1,3,5,7,9,11,13,15 set 1*/               \
-    r6 = vec_mergeh(r11, r15);  /*1,3,5,7,9,11,13,15 set 2*/               \
-    /* Don't need to compute 3 and 7*/                                     \
-                                                                           \
-    /*Final merge*/                                                        \
-    r8  = vec_mergeh(r0, r4);   /*all set 0*/                              \
-    r9  = vec_mergel(r0, r4);   /*all set 1*/                              \
-    r10 = vec_mergeh(r1, r5);   /*all set 2*/                              \
-    r11 = vec_mergel(r1, r5);   /*all set 3*/                              \
-    r12 = vec_mergeh(r2, r6);   /*all set 4*/                              \
-    r13 = vec_mergel(r2, r6);   /*all set 5*/                              \
-    /* Don't need to compute 14 and 15*/                                   \
-                                                                           \
+/** @brief performs a 6x16 transpose of data in src, and stores it to dst */
+#define readAndTranspose16x6(src, src_stride, r8, r9, r10, r11, r12, r13) {   \
+    register vec_u8 mask = vec_lvsl(0, src);                                  \
+    register vec_u8 r0  = load_with_perm_vec(0,             src, mask);       \
+    register vec_u8 r1  = load_with_perm_vec(   src_stride, src, mask);       \
+    register vec_u8 r2  = load_with_perm_vec(2* src_stride, src, mask);       \
+    register vec_u8 r3  = load_with_perm_vec(3* src_stride, src, mask);       \
+    register vec_u8 r4  = load_with_perm_vec(4* src_stride, src, mask);       \
+    register vec_u8 r5  = load_with_perm_vec(5* src_stride, src, mask);       \
+    register vec_u8 r6  = load_with_perm_vec(6* src_stride, src, mask);       \
+    register vec_u8 r7  = load_with_perm_vec(7* src_stride, src, mask);       \
+    register vec_u8 r14 = load_with_perm_vec(14*src_stride, src, mask);       \
+    register vec_u8 r15 = load_with_perm_vec(15*src_stride, src, mask);       \
+                                                                              \
+    r8  = load_with_perm_vec( 8*src_stride, src, mask);                       \
+    r9  = load_with_perm_vec( 9*src_stride, src, mask);                       \
+    r10 = load_with_perm_vec(10*src_stride, src, mask);                       \
+    r11 = load_with_perm_vec(11*src_stride, src, mask);                       \
+    r12 = load_with_perm_vec(12*src_stride, src, mask);                       \
+    r13 = load_with_perm_vec(13*src_stride, src, mask);                       \
+                                                                              \
+    /*Merge first pairs*/                                                     \
+    r0 = vec_mergeh(r0, r8);    /*0, 8*/                                      \
+    r1 = vec_mergeh(r1, r9);    /*1, 9*/                                      \
+    r2 = vec_mergeh(r2, r10);   /*2,10*/                                      \
+    r3 = vec_mergeh(r3, r11);   /*3,11*/                                      \
+    r4 = vec_mergeh(r4, r12);   /*4,12*/                                      \
+    r5 = vec_mergeh(r5, r13);   /*5,13*/                                      \
+    r6 = vec_mergeh(r6, r14);   /*6,14*/                                      \
+    r7 = vec_mergeh(r7, r15);   /*7,15*/                                      \
+                                                                              \
+    /*Merge second pairs*/                                                    \
+    r8  = vec_mergeh(r0, r4);   /*0,4, 8,12 set 0*/                           \
+    r9  = vec_mergel(r0, r4);   /*0,4, 8,12 set 1*/                           \
+    r10 = vec_mergeh(r1, r5);   /*1,5, 9,13 set 0*/                           \
+    r11 = vec_mergel(r1, r5);   /*1,5, 9,13 set 1*/                           \
+    r12 = vec_mergeh(r2, r6);   /*2,6,10,14 set 0*/                           \
+    r13 = vec_mergel(r2, r6);   /*2,6,10,14 set 1*/                           \
+    r14 = vec_mergeh(r3, r7);   /*3,7,11,15 set 0*/                           \
+    r15 = vec_mergel(r3, r7);   /*3,7,11,15 set 1*/                           \
+                                                                              \
+    /*Third merge*/                                                           \
+    r0 = vec_mergeh(r8,  r12);  /*0,2,4,6,8,10,12,14 set 0*/                  \
+    r1 = vec_mergel(r8,  r12);  /*0,2,4,6,8,10,12,14 set 1*/                  \
+    r2 = vec_mergeh(r9,  r13);  /*0,2,4,6,8,10,12,14 set 2*/                  \
+    r4 = vec_mergeh(r10, r14);  /*1,3,5,7,9,11,13,15 set 0*/                  \
+    r5 = vec_mergel(r10, r14);  /*1,3,5,7,9,11,13,15 set 1*/                  \
+    r6 = vec_mergeh(r11, r15);  /*1,3,5,7,9,11,13,15 set 2*/                  \
+    /* Don't need to compute 3 and 7*/                                        \
+                                                                              \
+    /*Final merge*/                                                           \
+    r8  = vec_mergeh(r0, r4);   /*all set 0*/                                 \
+    r9  = vec_mergel(r0, r4);   /*all set 1*/                                 \
+    r10 = vec_mergeh(r1, r5);   /*all set 2*/                                 \
+    r11 = vec_mergel(r1, r5);   /*all set 3*/                                 \
+    r12 = vec_mergeh(r2, r6);   /*all set 4*/                                 \
+    r13 = vec_mergel(r2, r6);   /*all set 5*/                                 \
+    /* Don't need to compute 14 and 15*/                                      \
+                                                                              \
 }
 
 // out: o = |x-y| < a
