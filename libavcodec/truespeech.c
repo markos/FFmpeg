@@ -39,7 +39,7 @@ typedef struct {
     BswapDSPContext bdsp;
     /* input data */
     DECLARE_ALIGNED(16, uint8_t, buffer)[32];
-    int16_t vector[8];  ///< input vector: 5/5/4/4/4/3/3/3
+    int16_t vec[8];     ///< input vector: 5/5/4/4/4/3/3/3
     int offset1[2];     ///< 8-bit value, used in one copying offset
     int offset2[4];     ///< 7-bit value, encodes offsets for copying and for two-point filter
     int pulseoff[4];    ///< 4-bit offset of pulse values block
@@ -82,14 +82,14 @@ static void truespeech_read_frame(TSContext *dec, const uint8_t *input)
     dec->bdsp.bswap_buf((uint32_t *) dec->buffer, (const uint32_t *) input, 8);
     init_get_bits(&gb, dec->buffer, 32 * 8);
 
-    dec->vector[7] = ts_codebook[7][get_bits(&gb, 3)];
-    dec->vector[6] = ts_codebook[6][get_bits(&gb, 3)];
-    dec->vector[5] = ts_codebook[5][get_bits(&gb, 3)];
-    dec->vector[4] = ts_codebook[4][get_bits(&gb, 4)];
-    dec->vector[3] = ts_codebook[3][get_bits(&gb, 4)];
-    dec->vector[2] = ts_codebook[2][get_bits(&gb, 4)];
-    dec->vector[1] = ts_codebook[1][get_bits(&gb, 5)];
-    dec->vector[0] = ts_codebook[0][get_bits(&gb, 5)];
+    dec->vec[7] = ts_codebook[7][get_bits(&gb, 3)];
+    dec->vec[6] = ts_codebook[6][get_bits(&gb, 3)];
+    dec->vec[5] = ts_codebook[5][get_bits(&gb, 3)];
+    dec->vec[4] = ts_codebook[4][get_bits(&gb, 4)];
+    dec->vec[3] = ts_codebook[3][get_bits(&gb, 4)];
+    dec->vec[2] = ts_codebook[2][get_bits(&gb, 4)];
+    dec->vec[1] = ts_codebook[1][get_bits(&gb, 5)];
+    dec->vec[0] = ts_codebook[0][get_bits(&gb, 5)];
     dec->flag      = get_bits1(&gb);
 
     dec->offset1[0] = get_bits(&gb, 4) << 4;
@@ -132,15 +132,15 @@ static void truespeech_correlate_filter(TSContext *dec)
         if(i > 0){
             memcpy(tmp, dec->cvector, i * sizeof(*tmp));
             for(j = 0; j < i; j++)
-                dec->cvector[j] = ((tmp[i - j - 1] * dec->vector[i]) +
+                dec->cvector[j] = ((tmp[i - j - 1] * dec->vec[i]) +
                                    (dec->cvector[j] << 15) + 0x4000) >> 15;
         }
-        dec->cvector[i] = (8 - dec->vector[i]) >> 3;
+        dec->cvector[i] = (8 - dec->vec[i]) >> 3;
     }
     for(i = 0; i < 8; i++)
         dec->cvector[i] = (dec->cvector[i] * ts_decay_994_1000[i]) >> 15;
 
-    dec->filtval = dec->vector[0];
+    dec->filtval = dec->vec[0];
 }
 
 static void truespeech_filters_merge(TSContext *dec)

@@ -246,19 +246,19 @@ static int normalize_bits(int num, int width)
 /**
  * Scale vector contents based on the largest of their absolutes.
  */
-static int scale_vector(int16_t *dst, const int16_t *vector, int length)
+static int scale_vector(int16_t *dst, const int16_t *vec, int length)
 {
     int bits, max = 0;
     int i;
 
     for (i = 0; i < length; i++)
-        max |= FFABS(vector[i]);
+        max |= FFABS(vec[i]);
 
     bits= 14 - av_log2_16bit(max);
     bits= FFMAX(bits, 0);
 
     for (i = 0; i < length; i++)
-        dst[i] = vector[i] << bits >> 3;
+        dst[i] = vec[i] << bits >> 3;
 
     return bits - 3;
 }
@@ -442,13 +442,13 @@ static void lsp_interpolate(int16_t *lpc, int16_t *cur_lsp, int16_t *prev_lsp)
  */
 static void gen_dirac_train(int16_t *buf, int pitch_lag)
 {
-    int16_t vector[SUBFRAME_LEN];
+    int16_t vec[SUBFRAME_LEN];
     int i, j;
 
-    memcpy(vector, buf, SUBFRAME_LEN * sizeof(*vector));
+    memcpy(vec, buf, SUBFRAME_LEN * sizeof(*vec));
     for (i = pitch_lag; i < SUBFRAME_LEN; i += pitch_lag) {
         for (j = 0; j < SUBFRAME_LEN - i; j++)
-            buf[i + j] += vector[j];
+            buf[i + j] += vec[j];
     }
 }
 
@@ -461,12 +461,12 @@ static void gen_dirac_train(int16_t *buf, int pitch_lag)
  * @param pitch_lag closed loop pitch lag
  * @param index     current subframe index
  */
-static void gen_fcb_excitation(int16_t *vector, G723_1_Subframe *subfrm,
+static void gen_fcb_excitation(int16_t *vec, G723_1_Subframe *subfrm,
                                enum Rate cur_rate, int pitch_lag, int index)
 {
     int temp, i, j;
 
-    memset(vector, 0, SUBFRAME_LEN * sizeof(*vector));
+    memset(vec, 0, SUBFRAME_LEN * sizeof(*vec));
 
     if (cur_rate == RATE_6300) {
         if (subfrm->pulse_pos >= max_pos[index])
@@ -481,17 +481,17 @@ static void gen_fcb_excitation(int16_t *vector, G723_1_Subframe *subfrm,
                 continue;
             temp += combinatorial_table[j++][i];
             if (subfrm->pulse_sign & (1 << (PULSE_MAX - j))) {
-                vector[subfrm->grid_index + GRID_SIZE * i] =
+                vec[subfrm->grid_index + GRID_SIZE * i] =
                                         -fixed_cb_gain[subfrm->amp_index];
             } else {
-                vector[subfrm->grid_index + GRID_SIZE * i] =
+                vec[subfrm->grid_index + GRID_SIZE * i] =
                                          fixed_cb_gain[subfrm->amp_index];
             }
             if (j == PULSE_MAX)
                 break;
         }
         if (subfrm->dirac_train == 1)
-            gen_dirac_train(vector, pitch_lag);
+            gen_dirac_train(vec, pitch_lag);
     } else { /* 5300 bps */
         int cb_gain  = fixed_cb_gain[subfrm->amp_index];
         int cb_shift = subfrm->grid_index;
@@ -500,8 +500,8 @@ static void gen_fcb_excitation(int16_t *vector, G723_1_Subframe *subfrm,
         int offset, beta, lag;
 
         for (i = 0; i < 8; i += 2) {
-            offset         = ((cb_pos & 7) << 3) + cb_shift + i;
-            vector[offset] = (cb_sign & 1) ? cb_gain : -cb_gain;
+            offset      = ((cb_pos & 7) << 3) + cb_shift + i;
+            vec[offset] = (cb_sign & 1) ? cb_gain : -cb_gain;
             cb_pos  >>= 3;
             cb_sign >>= 1;
         }
@@ -513,7 +513,7 @@ static void gen_fcb_excitation(int16_t *vector, G723_1_Subframe *subfrm,
 
         if (lag < SUBFRAME_LEN - 2) {
             for (i = lag; i < SUBFRAME_LEN; i++)
-                vector[i] += beta * vector[i - lag] >> 15;
+                vec[i] += beta * vec[i - lag] >> 15;
         }
     }
 }
@@ -543,7 +543,7 @@ static int dot_product(const int16_t *a, const int16_t *b, int length)
 /**
  * Generate adaptive codebook excitation.
  */
-static void gen_acb_excitation(int16_t *vector, int16_t *prev_excitation,
+static void gen_acb_excitation(int16_t *vec, int16_t *prev_excitation,
                                int pitch_lag, G723_1_Subframe *subfrm,
                                enum Rate cur_rate)
 {
@@ -566,7 +566,7 @@ static void gen_acb_excitation(int16_t *vector, int16_t *prev_excitation,
     cb_ptr += subfrm->ad_cb_gain * 20;
     for (i = 0; i < SUBFRAME_LEN; i++) {
         sum = ff_dot_product(residual + i, cb_ptr, PITCH_ORDER);
-        vector[i] = av_sat_dadd32(1 << 15, av_sat_add32(sum, sum)) >> 16;
+        vec[i] = av_sat_dadd32(1 << 15, av_sat_add32(sum, sum)) >> 16;
     }
 }
 
@@ -1401,16 +1401,16 @@ static void highpass_filter(int16_t *buf, int16_t *fir, int *iir)
 static void comp_autocorr(int16_t *buf, int16_t *autocorr)
 {
     int i, scale, temp;
-    int16_t vector[LPC_FRAME];
+    int16_t vec[LPC_FRAME];
 
-    scale_vector(vector, buf, LPC_FRAME);
+    scale_vector(vec, buf, LPC_FRAME);
 
     /* Apply the Hamming window */
     for (i = 0; i < LPC_FRAME; i++)
-        vector[i] = (vector[i] * hamming_window[i] + (1 << 14)) >> 15;
+        vec[i] = (vec[i] * hamming_window[i] + (1 << 14)) >> 15;
 
     /* Compute the first autocorrelation coefficient */
-    temp = ff_dot_product(vector, vector, LPC_FRAME);
+    temp = ff_dot_product(vec, vec, LPC_FRAME);
 
     /* Apply a white noise correlation factor of (1025/1024) */
     temp += temp >> 10;
@@ -1425,7 +1425,7 @@ static void comp_autocorr(int16_t *buf, int16_t *autocorr)
         memset(autocorr + 1, 0, LPC_ORDER * sizeof(int16_t));
     } else {
         for (i = 1; i <= LPC_ORDER; i++) {
-           temp = ff_dot_product(vector, vector + i, LPC_FRAME - i);
+           temp = ff_dot_product(vec, vec + i, LPC_FRAME - i);
            temp = MULL2((temp << scale), binomial_window[i - 1]);
            autocorr[i] = av_clipl_int32((int64_t)temp + (1 << 15)) >> 16;
         }
@@ -1442,7 +1442,7 @@ static void comp_autocorr(int16_t *buf, int16_t *autocorr)
  */
 static void levinson_durbin(int16_t *lpc, int16_t *autocorr, int16_t error)
 {
-    int16_t vector[LPC_ORDER];
+    int16_t vec[LPC_ORDER];
     int16_t partial_corr;
     int i, j, temp;
 
@@ -1468,9 +1468,9 @@ static void levinson_durbin(int16_t *lpc, int16_t *autocorr, int16_t error)
         error = av_clipl_int32((int64_t)(error << 16) - temp +
                                 (1 << 15)) >> 16;
 
-        memcpy(vector, lpc, i * sizeof(int16_t));
+        memcpy(vec, lpc, i * sizeof(int16_t));
         for (j = 0; j < i; j++) {
-            temp = partial_corr * vector[i - j - 1] << 1;
+            temp = partial_corr * vec[i - j - 1] << 1;
             lpc[j] = av_clipl_int32((int64_t)(lpc[j] << 16) - temp +
                                     (1 << 15)) >> 16;
         }
@@ -1669,12 +1669,12 @@ static void lsp_quantize(uint8_t *lsp_index, int16_t *lsp, int16_t *prev_lsp)
 static void perceptual_filter(G723_1_Context *p, int16_t *flt_coef,
                               int16_t *unq_lpc, int16_t *buf)
 {
-    int16_t vector[FRAME_LEN + LPC_ORDER];
+    int16_t vec[FRAME_LEN + LPC_ORDER];
     int i, j, k, l = 0;
 
     memcpy(buf, p->iir_mem, sizeof(int16_t) * LPC_ORDER);
-    memcpy(vector, p->fir_mem, sizeof(int16_t) * LPC_ORDER);
-    memcpy(vector + LPC_ORDER, buf + LPC_ORDER, sizeof(int16_t) * FRAME_LEN);
+    memcpy(vec, p->fir_mem, sizeof(int16_t) * LPC_ORDER);
+    memcpy(vec + LPC_ORDER, buf + LPC_ORDER, sizeof(int16_t) * FRAME_LEN);
 
     for (i = LPC_ORDER, j = 0; j < SUBFRAMES; i += SUBFRAME_LEN, j++) {
         for (k = 0; k < LPC_ORDER; k++) {
@@ -1684,12 +1684,12 @@ static void perceptual_filter(G723_1_Context *p, int16_t *flt_coef,
                                              percept_flt_tbl[1][k] +
                                              (1 << 14)) >> 15;
         }
-        iir_filter(flt_coef + 2 * l, flt_coef + 2 * l + LPC_ORDER, vector + i,
+        iir_filter(flt_coef + 2 * l, flt_coef + 2 * l + LPC_ORDER, vec + i,
                    buf + i, 0);
         l += LPC_ORDER;
     }
     memcpy(p->iir_mem, buf + FRAME_LEN, sizeof(int16_t) * LPC_ORDER);
-    memcpy(p->fir_mem, vector + FRAME_LEN, sizeof(int16_t) * LPC_ORDER);
+    memcpy(p->fir_mem, vec + FRAME_LEN, sizeof(int16_t) * LPC_ORDER);
 }
 
 /**
@@ -2344,7 +2344,7 @@ static int g723_1_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
     int16_t qnt_lpc[LPC_ORDER * SUBFRAMES];
     int16_t cur_lsp[LPC_ORDER];
     int16_t weighted_lpc[LPC_ORDER * SUBFRAMES << 1];
-    int16_t vector[FRAME_LEN + PITCH_MAX];
+    int16_t vec[FRAME_LEN + PITCH_MAX];
     int offset, ret;
     int16_t *in_orig = av_memdup(frame->data[0], frame->nb_samples * sizeof(int16_t));
     int16_t *in = in_orig;
@@ -2357,42 +2357,42 @@ static int g723_1_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
 
     highpass_filter(in, &p->hpf_fir_mem, &p->hpf_iir_mem);
 
-    memcpy(vector, p->prev_data, HALF_FRAME_LEN * sizeof(int16_t));
-    memcpy(vector + HALF_FRAME_LEN, in, FRAME_LEN * sizeof(int16_t));
+    memcpy(vec, p->prev_data, HALF_FRAME_LEN * sizeof(int16_t));
+    memcpy(vec + HALF_FRAME_LEN, in, FRAME_LEN * sizeof(int16_t));
 
-    comp_lpc_coeff(vector, unq_lpc);
+    comp_lpc_coeff(vec, unq_lpc);
     lpc2lsp(&unq_lpc[LPC_ORDER * 3], p->prev_lsp, cur_lsp);
     lsp_quantize(p->lsp_index, cur_lsp, p->prev_lsp);
 
     /* Update memory */
-    memcpy(vector + LPC_ORDER, p->prev_data + SUBFRAME_LEN,
+    memcpy(vec + LPC_ORDER, p->prev_data + SUBFRAME_LEN,
            sizeof(int16_t) * SUBFRAME_LEN);
-    memcpy(vector + LPC_ORDER + SUBFRAME_LEN, in,
+    memcpy(vec + LPC_ORDER + SUBFRAME_LEN, in,
            sizeof(int16_t) * (HALF_FRAME_LEN + SUBFRAME_LEN));
     memcpy(p->prev_data, in + HALF_FRAME_LEN,
            sizeof(int16_t) * HALF_FRAME_LEN);
-    memcpy(in, vector + LPC_ORDER, sizeof(int16_t) * FRAME_LEN);
+    memcpy(in, vec + LPC_ORDER, sizeof(int16_t) * FRAME_LEN);
 
-    perceptual_filter(p, weighted_lpc, unq_lpc, vector);
+    perceptual_filter(p, weighted_lpc, unq_lpc, vec);
 
-    memcpy(in, vector + LPC_ORDER, sizeof(int16_t) * FRAME_LEN);
-    memcpy(vector, p->prev_weight_sig, sizeof(int16_t) * PITCH_MAX);
-    memcpy(vector + PITCH_MAX, in, sizeof(int16_t) * FRAME_LEN);
+    memcpy(in, vec + LPC_ORDER, sizeof(int16_t) * FRAME_LEN);
+    memcpy(vec, p->prev_weight_sig, sizeof(int16_t) * PITCH_MAX);
+    memcpy(vec + PITCH_MAX, in, sizeof(int16_t) * FRAME_LEN);
 
-    scale_vector(vector, vector, FRAME_LEN + PITCH_MAX);
+    scale_vector(vec, vec, FRAME_LEN + PITCH_MAX);
 
-    p->pitch_lag[0] = estimate_pitch(vector, PITCH_MAX);
-    p->pitch_lag[1] = estimate_pitch(vector, PITCH_MAX + HALF_FRAME_LEN);
+    p->pitch_lag[0] = estimate_pitch(vec, PITCH_MAX);
+    p->pitch_lag[1] = estimate_pitch(vec, PITCH_MAX + HALF_FRAME_LEN);
 
     for (i = PITCH_MAX, j = 0; j < SUBFRAMES; i += SUBFRAME_LEN, j++)
-        comp_harmonic_coeff(vector + i, p->pitch_lag[j >> 1], hf + j);
+        comp_harmonic_coeff(vec + i, p->pitch_lag[j >> 1], hf + j);
 
-    memcpy(vector, p->prev_weight_sig, sizeof(int16_t) * PITCH_MAX);
-    memcpy(vector + PITCH_MAX, in, sizeof(int16_t) * FRAME_LEN);
-    memcpy(p->prev_weight_sig, vector + FRAME_LEN, sizeof(int16_t) * PITCH_MAX);
+    memcpy(vec, p->prev_weight_sig, sizeof(int16_t) * PITCH_MAX);
+    memcpy(vec + PITCH_MAX, in, sizeof(int16_t) * FRAME_LEN);
+    memcpy(p->prev_weight_sig, vec + FRAME_LEN, sizeof(int16_t) * PITCH_MAX);
 
     for (i = 0, j = 0; j < SUBFRAMES; i += SUBFRAME_LEN, j++)
-        harmonic_filter(hf + j, vector + PITCH_MAX + i, in + i);
+        harmonic_filter(hf + j, vec + PITCH_MAX + i, in + i);
 
     inverse_quant(cur_lsp, p->prev_lsp, p->lsp_index, 0);
     lsp_interpolate(qnt_lpc, cur_lsp, p->prev_lsp);
@@ -2411,13 +2411,13 @@ static int g723_1_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
          * formant perceptual weighting filter and harmonic noise shaping filter
          */
         memset(zero, 0, sizeof(int16_t) * LPC_ORDER);
-        memset(vector, 0, sizeof(int16_t) * PITCH_MAX);
+        memset(vec, 0, sizeof(int16_t) * PITCH_MAX);
         memset(flt_in, 0, sizeof(int16_t) * SUBFRAME_LEN);
 
         flt_in[0] = 1 << 13; /* Unit impulse */
         synth_percept_filter(qnt_lpc + offset, weighted_lpc + (offset << 1),
-                             zero, zero, flt_in, vector + PITCH_MAX, 1);
-        harmonic_filter(hf + i, vector + PITCH_MAX, impulse_resp);
+                             zero, zero, flt_in, vec + PITCH_MAX, 1);
+        harmonic_filter(hf + i, vec + PITCH_MAX, impulse_resp);
 
          /* Compute the combined zero input response */
         flt_in[0] = 0;
@@ -2425,9 +2425,9 @@ static int g723_1_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
         memcpy(iir, p->perf_iir_mem, sizeof(int16_t) * LPC_ORDER);
 
         synth_percept_filter(qnt_lpc + offset, weighted_lpc + (offset << 1),
-                             fir, iir, flt_in, vector + PITCH_MAX, 0);
-        memcpy(vector, p->harmonic_mem, sizeof(int16_t) * PITCH_MAX);
-        harmonic_noise_sub(hf + i, vector + PITCH_MAX, in);
+                             fir, iir, flt_in, vec + PITCH_MAX, 0);
+        memcpy(vec, p->harmonic_mem, sizeof(int16_t) * PITCH_MAX);
+        harmonic_noise_sub(hf + i, vec + PITCH_MAX, in);
 
         acb_search(p, residual, impulse_resp, in, i);
         gen_acb_excitation(residual, p->prev_excitation,p->pitch_lag[i >> 1],
@@ -2450,10 +2450,10 @@ static int g723_1_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
         /* Update filter memories */
         synth_percept_filter(qnt_lpc + offset, weighted_lpc + (offset << 1),
                              p->perf_fir_mem, p->perf_iir_mem,
-                             in, vector + PITCH_MAX, 0);
+                             in, vec + PITCH_MAX, 0);
         memmove(p->harmonic_mem, p->harmonic_mem + SUBFRAME_LEN,
                 sizeof(int16_t) * (PITCH_MAX - SUBFRAME_LEN));
-        memcpy(p->harmonic_mem + PITCH_MAX - SUBFRAME_LEN, vector + PITCH_MAX,
+        memcpy(p->harmonic_mem + PITCH_MAX - SUBFRAME_LEN, vec + PITCH_MAX,
                sizeof(int16_t) * SUBFRAME_LEN);
 
         in += SUBFRAME_LEN;
