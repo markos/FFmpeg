@@ -430,15 +430,15 @@ static int xan_wc3_decode_frame(XanContext *s, AVFrame *frame)
                 imagedata_size -= size;
             }
         } else {
-            uint8_t vector;
+            uint8_t vec;
             if (bytestream2_get_bytes_left(&vector_segment) <= 0) {
                 av_log(s->avctx, AV_LOG_ERROR, "vector_segment overread\n");
                 return AVERROR_INVALIDDATA;
             }
             /* run-based motion compensation from last frame */
-            vector = bytestream2_get_byte(&vector_segment);
-            motion_x = sign_extend(vector >> 4,  4);
-            motion_y = sign_extend(vector & 0xF, 4);
+            vec = bytestream2_get_byte(&vector_segment);
+            motion_x = sign_extend(vec >> 4,  4);
+            motion_y = sign_extend(vec & 0xF, 4);
 
             /* copy a run of pixels from the previous frame */
             xan_wc3_copy_pixel_run(s, frame, x, y, size, motion_x, motion_y);

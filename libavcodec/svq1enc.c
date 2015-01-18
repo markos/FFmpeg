@@ -140,14 +140,14 @@ static int encode_block(SVQ1EncContext *s, uint8_t *src, uint8_t *ref,
             int best_vector_score = INT_MAX;
             int best_vector_sum   = -999, best_vector_mean = -999;
             const int stage       = count - 1;
-            const int8_t *vector;
+            const int8_t *vec;
 
             for (i = 0; i < 16; i++) {
                 int sum = codebook_sum[stage * 16 + i];
                 int sqr, diff, score;
 
-                vector = codebook + stage * size * 16 + i * size;
-                sqr    = s->ssd_int8_vs_int16(vector, block[stage], size);
+                vec    = codebook + stage * size * 16 + i * size;
+                sqr    = s->ssd_int8_vs_int16(vec, block[stage], size);
                 diff   = block_sum[stage] - sum;
                 score  = sqr - (diff * (int64_t)diff >> (level + 3)); // FIXME: 64bit slooow
                 if (score < best_vector_score) {
@@ -161,9 +161,9 @@ static int encode_block(SVQ1EncContext *s, uint8_t *src, uint8_t *ref,
                 }
             }
             av_assert0(best_vector_mean != -999);
-            vector = codebook + stage * size * 16 + best_vector[stage] * size;
+            vec = codebook + stage * size * 16 + best_vector[stage] * size;
             for (j = 0; j < size; j++)
-                block[stage + 1][j] = block[stage][j] - vector[j];
+                block[stage + 1][j] = block[stage][j] - vec[j];
             block_sum[stage + 1] = block_sum[stage] - best_vector_sum;
             best_vector_score   += lambda *
                                    (+1 + 4 * count +
