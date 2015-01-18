@@ -223,13 +223,13 @@ static int tgv_decode_inter(TgvContext *s, AVFrame *frame,
     /* read vectors and build frame */
     for (y = 0; y < s->avctx->height / 4; y++)
         for (x = 0; x < s->avctx->width / 4; x++) {
-            unsigned int vector = get_bits(&gb, vector_bits);
+            unsigned int vec = get_bits(&gb, vector_bits);
             const uint8_t *src;
             int src_stride;
 
-            if (vector < num_mvs) {
-                int mx = x * 4 + s->mv_codebook[vector][0];
-                int my = y * 4 + s->mv_codebook[vector][1];
+            if (vec < num_mvs) {
+                int mx = x * 4 + s->mv_codebook[vec][0];
+                int my = y * 4 + s->mv_codebook[vec][1];
 
                 if (mx < 0 || mx + 4 > s->avctx->width ||
                     my < 0 || my + 4 > s->avctx->height) {
@@ -240,7 +240,7 @@ static int tgv_decode_inter(TgvContext *s, AVFrame *frame,
                 src = s->last_frame->data[0] + mx + my * s->last_frame->linesize[0];
                 src_stride = s->last_frame->linesize[0];
             } else {
-                int offset = vector - num_mvs;
+                int offset = vec - num_mvs;
                 if (offset < num_blocks_raw)
                     src = blocks_raw + 16*offset;
                 else if (offset - num_blocks_raw < num_blocks_packed)

@@ -117,6 +117,50 @@ static av_always_inline void av_write_bswap64(void *p, uint64_t v)
              : "r"(vv.hl[1]), "r"(vv.hl[0]));
 }
 
+#if HAVE_ALTIVEC
+#include <altivec.h>
+#include "util_altivec.h"
+#undef pixel
+
+#ifdef AV_COPY128
+#undef AV_COPY128
+#endif
+#define AV_COPY128(d, s) av_copy128((uint8_t*)d, (uint8_t*)s)
+static av_always_inline void av_copy128(uint8_t *d, uint8_t *s)
+{
+    if ((uint32_t)d % 16 == 0 ) {
+        if ((uint32_t)s % 16 == 0) {
+            vec_u8 vs = vec_ld(0, s);
+            vec_st(vs, 0, d);
+        } else {
+            vec_u8 vs = unaligned_load(0, s);
+            vec_st(vs, 0, d);
+        }
+    } else {     
+	uint64_t *d64 = (uint64_t *)d;
+	uint64_t *s64 = (uint64_t *)s;
+        *d64 = *s64;
+        *(d64+1) = *(s64+1);
+    }
+}
+
+#ifdef AV_ZERO128
+#undef AV_ZERO128
+#endif
+#define AV_ZERO128(d) av_zero128((uint8_t*)d)
+static av_always_inline void av_zero128(uint8_t *d)
+{
+    if ((uint32_t)d % 16 == 0) {
+        vec_u8 zerov = vec_splat_u8(0);
+        vec_st(zerov, 0, d);
+    } else  {
+	uint64_t *d64 = (uint64_t *)d;
+        *d64 = 0;
+        *(d64+1) = 0;
+    }
+}
+#endif /* HAVE_ALTIVEC */
+
 #endif /* HAVE_LDBRX */
 
 #endif /* HAVE_XFORM_ASM */
