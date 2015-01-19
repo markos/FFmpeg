@@ -40,15 +40,12 @@
 #include "libavcodec/h264pred.h"
 
 
-static void ff_pred16x16_vert_altivec(uint8_t *_src, ptrdiff_t _stride)
+static void ff_pred16x16_vert_altivec(uint8_t *src, ptrdiff_t stride)
 {
-    int i;
-    uint32_t *src = (uint32_t*)_src;
-    int stride = _stride>>(sizeof(uint32_t)-1);
-    vec_u32 srcv = vec_ld(0, src-stride);
+    vec_u8 srcv = vec_ld(0, src-stride);
 
-    // completely unroll the loop
-    VEC_ST(srcv, 0*stride, src); 
+    // unroll the loop 4 times
+    VEC_ST(srcv, 0*stride, src);
     VEC_ST(srcv, 1*stride, src);
     VEC_ST(srcv, 2*stride, src);
     VEC_ST(srcv, 3*stride, src);
@@ -66,12 +63,10 @@ static void ff_pred16x16_vert_altivec(uint8_t *_src, ptrdiff_t _stride)
     VEC_ST(srcv,15*stride, src);
 }
 
-static void ff_pred16x16_hor_altivec(uint8_t *_src, ptrdiff_t stride)
+static void ff_pred16x16_hor_altivec(uint8_t *src, ptrdiff_t stride)
 {
     DECLARE_ALIGNED(16, uint32_t, a)[4];
     int i;
-    pixel *src = (pixel*)_src;
-    stride >>= sizeof(pixel)-1;
 
     for(i=0; i<16; i++){
         a[0] = PIXEL_SPLAT_X4(src[-1+i*stride]);
@@ -83,12 +78,11 @@ static void ff_pred16x16_hor_altivec(uint8_t *_src, ptrdiff_t stride)
     }
 }
 
-static void ff_pred16x16_dc_altivec(uint8_t *_src, ptrdiff_t stride)
+static void ff_pred16x16_dc_altivec(uint8_t *src, ptrdiff_t stride)
 {
     DECLARE_ALIGNED(16, uint32_t, dcsplat)[4];
     int i, dc=0;
-    pixel *src = (pixel*)_src;
-    stride >>= sizeof(pixel)-1;
+    uint32_t *src32 = (uint32_t*)src;
 
     for(i=0;i<16; i++){
         dc+= src[-1+i*stride];
@@ -102,30 +96,29 @@ static void ff_pred16x16_dc_altivec(uint8_t *_src, ptrdiff_t stride)
     vec_u32 dcsplatv = vec_ld(0, dcsplat);
     dcsplatv = vec_splat(dcsplatv, 0);
 
-    VEC_ST(dcsplatv, 0*stride, (uint32_t*) src); 
-    VEC_ST(dcsplatv, 1*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 2*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 3*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 4*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 5*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 6*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 7*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 8*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 9*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,10*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,11*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,12*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,13*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,14*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,15*stride, (uint32_t*) src);
+    VEC_ST(dcsplatv, 0*stride, src32); 
+    VEC_ST(dcsplatv, 1*stride, src32);
+    VEC_ST(dcsplatv, 2*stride, src32);
+    VEC_ST(dcsplatv, 3*stride, src32);
+    VEC_ST(dcsplatv, 4*stride, src32);
+    VEC_ST(dcsplatv, 5*stride, src32);
+    VEC_ST(dcsplatv, 6*stride, src32);
+    VEC_ST(dcsplatv, 7*stride, src32);
+    VEC_ST(dcsplatv, 8*stride, src32);
+    VEC_ST(dcsplatv, 9*stride, src32);
+    VEC_ST(dcsplatv,10*stride, src32);
+    VEC_ST(dcsplatv,11*stride, src32);
+    VEC_ST(dcsplatv,12*stride, src32);
+    VEC_ST(dcsplatv,13*stride, src32);
+    VEC_ST(dcsplatv,14*stride, src32);
+    VEC_ST(dcsplatv,15*stride, src32);
 }
 
-static void ff_pred16x16_left_dc_altivec(uint8_t *_src, ptrdiff_t stride)
+static void ff_pred16x16_left_dc_altivec(uint8_t *src, ptrdiff_t stride)
 {
     DECLARE_ALIGNED(16, uint32_t, dcsplat)[4];
     int i, dc=0;
-    pixel *src = (pixel*)_src;
-    stride >>= sizeof(pixel)-1;
+    uint32_t *src32 = (uint32_t*)src;
 
     for(i=0;i<16; i++){
         dc+= src[-1+i*stride];
@@ -135,30 +128,29 @@ static void ff_pred16x16_left_dc_altivec(uint8_t *_src, ptrdiff_t stride)
     vec_u32 dcsplatv = vec_ld(0, dcsplat);
     dcsplatv = vec_splat(dcsplatv, 0);
 
-    VEC_ST(dcsplatv, 0*stride, (uint32_t*) src); 
-    VEC_ST(dcsplatv, 1*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 2*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 3*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 4*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 5*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 6*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 7*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 8*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 9*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,10*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,11*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,12*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,13*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,14*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,15*stride, (uint32_t*) src);
+    VEC_ST(dcsplatv, 0*stride, src32); 
+    VEC_ST(dcsplatv, 1*stride, src32);
+    VEC_ST(dcsplatv, 2*stride, src32);
+    VEC_ST(dcsplatv, 3*stride, src32);
+    VEC_ST(dcsplatv, 4*stride, src32);
+    VEC_ST(dcsplatv, 5*stride, src32);
+    VEC_ST(dcsplatv, 6*stride, src32);
+    VEC_ST(dcsplatv, 7*stride, src32);
+    VEC_ST(dcsplatv, 8*stride, src32);
+    VEC_ST(dcsplatv, 9*stride, src32);
+    VEC_ST(dcsplatv,10*stride, src32);
+    VEC_ST(dcsplatv,11*stride, src32);
+    VEC_ST(dcsplatv,12*stride, src32);
+    VEC_ST(dcsplatv,13*stride, src32);
+    VEC_ST(dcsplatv,14*stride, src32);
+    VEC_ST(dcsplatv,15*stride, src32);
 }
 
-static void ff_pred16x16_top_dc_altivec(uint8_t *_src, ptrdiff_t stride)
+static void ff_pred16x16_top_dc_altivec(uint8_t *src, ptrdiff_t stride)
 {
     DECLARE_ALIGNED(16, uint32_t, dcsplat)[4];
     int i, dc=0;
-    pixel *src = (pixel*)_src;
-    stride >>= sizeof(pixel)-1;
+    uint32_t *src32 = (uint32_t*)src;
 
     for(i=0;i<16; i++){
         dc+= src[i-stride];
@@ -168,51 +160,49 @@ static void ff_pred16x16_top_dc_altivec(uint8_t *_src, ptrdiff_t stride)
     vec_u32 dcsplatv = vec_ld(0, dcsplat);
     dcsplatv = vec_splat(dcsplatv, 0);
 
-    VEC_ST(dcsplatv, 0*stride, (uint32_t*) src); 
-    VEC_ST(dcsplatv, 1*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 2*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 3*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 4*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 5*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 6*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 7*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 8*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 9*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,10*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,11*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,12*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,13*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,14*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,15*stride, (uint32_t*) src);
+    VEC_ST(dcsplatv, 0*stride, src32); 
+    VEC_ST(dcsplatv, 1*stride, src32);
+    VEC_ST(dcsplatv, 2*stride, src32);
+    VEC_ST(dcsplatv, 3*stride, src32);
+    VEC_ST(dcsplatv, 4*stride, src32);
+    VEC_ST(dcsplatv, 5*stride, src32);
+    VEC_ST(dcsplatv, 6*stride, src32);
+    VEC_ST(dcsplatv, 7*stride, src32);
+    VEC_ST(dcsplatv, 8*stride, src32);
+    VEC_ST(dcsplatv, 9*stride, src32);
+    VEC_ST(dcsplatv,10*stride, src32);
+    VEC_ST(dcsplatv,11*stride, src32);
+    VEC_ST(dcsplatv,12*stride, src32);
+    VEC_ST(dcsplatv,13*stride, src32);
+    VEC_ST(dcsplatv,14*stride, src32);
+    VEC_ST(dcsplatv,15*stride, src32);
 }
 
-static void ff_pred16x16_128_dc_altivec(uint8_t *_src, ptrdiff_t stride)
+static void ff_pred16x16_128_dc_altivec(uint8_t *src, ptrdiff_t stride)
 {
     DECLARE_ALIGNED(16, uint32_t, dcsplat)[4];
-    int i;
-    pixel *src = (pixel*)_src;
-    stride >>= sizeof(pixel)-1;
+    uint32_t *src32 = (uint32_t*)src;
     
     dcsplat[0] = PIXEL_SPLAT_X4((1<<(BIT_DEPTH-1))+0);
     vec_u32 dcsplatv = vec_ld(0, dcsplat);
     dcsplatv = vec_splat(dcsplatv, 0);
 
-    VEC_ST(dcsplatv, 0*stride, (uint32_t*) src); 
-    VEC_ST(dcsplatv, 1*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 2*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 3*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 4*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 5*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 6*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 7*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 8*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv, 9*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,10*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,11*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,12*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,13*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,14*stride, (uint32_t*) src);
-    VEC_ST(dcsplatv,15*stride, (uint32_t*) src);
+    VEC_ST(dcsplatv, 0*stride, src32); 
+    VEC_ST(dcsplatv, 1*stride, src32);
+    VEC_ST(dcsplatv, 2*stride, src32);
+    VEC_ST(dcsplatv, 3*stride, src32);
+    VEC_ST(dcsplatv, 4*stride, src32);
+    VEC_ST(dcsplatv, 5*stride, src32);
+    VEC_ST(dcsplatv, 6*stride, src32);
+    VEC_ST(dcsplatv, 7*stride, src32);
+    VEC_ST(dcsplatv, 8*stride, src32);
+    VEC_ST(dcsplatv, 9*stride, src32);
+    VEC_ST(dcsplatv,10*stride, src32);
+    VEC_ST(dcsplatv,11*stride, src32);
+    VEC_ST(dcsplatv,12*stride, src32);
+    VEC_ST(dcsplatv,13*stride, src32);
+    VEC_ST(dcsplatv,14*stride, src32);
+    VEC_ST(dcsplatv,15*stride, src32);
 }
 
 // TODO: Prpperly optimize loop, now it's just a dup
@@ -296,8 +286,6 @@ static av_cold void h264_pred_init_altivec(H264PredContext *h, int codec_id,
 av_cold void ff_h264_pred_init_ppc(H264PredContext *h, int codec_id,
                                    int bit_depth, const int chroma_format_idc)
 {
-    int cpu_flags = av_get_cpu_flags();
-
     if (PPC_ALTIVEC(av_get_cpu_flags()))
         h264_pred_init_altivec(h, codec_id, bit_depth, chroma_format_idc);
 }
