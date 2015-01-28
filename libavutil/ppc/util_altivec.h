@@ -158,6 +158,24 @@ static inline vec_u8 load_with_perm_vec(int offset, const uint8_t *src, vec_u8 p
 #define VEC_SLD16(a,b,c) vec_sld(b, a, c)
 #endif
 
+static inline vec_u8 rightside_permmask(uint8_t *addr) {
+    vec_u8 v, termadd, termsub, maskadd, masksub, result;
+    const vec_u8 v0_ = vec_splat_u8(0), v8_ = vec_splat_u8(8), v15_ = vec_splat_u8(15);
+
+    v = vec_lvsl(0, addr);
+
+    maskadd = (vec_u8) vec_cmplt(vec_sub(v, v8_), v8_);
+    masksub = (vec_u8) vec_cmpgt(v, v15_);
+
+    termadd = vec_sel(v0_, v8_, maskadd);
+    termsub = vec_sel(v0_, v8_, masksub);
+
+    result = vec_add(v, termadd);
+    result = vec_sub(result, termsub);
+
+    return result;
+}
+
 #endif /* HAVE_ALTIVEC */
 
 #endif /* AVUTIL_PPC_UTIL_ALTIVEC_H */
