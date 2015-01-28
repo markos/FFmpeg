@@ -140,17 +140,10 @@ static void PREFIX_h264_chroma_mc8_altivec(uint8_t * dst, uint8_t * src,
     vsrcperm0 = vec_lvsl(0, src);
     vsrcperm1 = vec_lvsl(1, src);
 #endif
-
     if (((unsigned long)dst) % 16 == 0) {
-        fperm = (vec_u8){0x10, 0x11, 0x12, 0x13,
-                         0x14, 0x15, 0x16, 0x17,
-                         0x08, 0x09, 0x0A, 0x0B,
-                         0x0C, 0x0D, 0x0E, 0x0F};
+        fperm = FPERM_ALIGNED;
     } else {
-        fperm = (vec_u8){0x00, 0x01, 0x02, 0x03,
-                         0x04, 0x05, 0x06, 0x07,
-                         0x18, 0x19, 0x1A, 0x1B,
-                         0x1C, 0x1D, 0x1E, 0x1F};
+        fperm = FPERM_UNALIGNED;
     }
 
     GET_VSRC(vsrc0uc, vsrc1uc, 0, 16, vsrcperm0, vsrcperm1, src);
@@ -212,17 +205,10 @@ static void PREFIX_no_rnd_vc1_chroma_mc8_altivec(uint8_t * dst, uint8_t * src, i
     vsrcperm0 = vec_lvsl(0, src);
     vsrcperm1 = vec_lvsl(1, src);
 #endif
-
     if (((unsigned long)dst) % 16 == 0) {
-        fperm = (vec_u8){0x10, 0x11, 0x12, 0x13,
-                         0x14, 0x15, 0x16, 0x17,
-                         0x08, 0x09, 0x0A, 0x0B,
-                         0x0C, 0x0D, 0x0E, 0x0F};
+        fperm = FPERM_ALIGNED;
     } else {
-        fperm = (vec_u8){0x00, 0x01, 0x02, 0x03,
-                         0x04, 0x05, 0x06, 0x07,
-                         0x18, 0x19, 0x1A, 0x1B,
-                         0x1C, 0x1D, 0x1E, 0x1F};
+        fperm = FPERM_UNALIGNED;
     }
 
     GET_VSRC(vsrc0uc, vsrc1uc, 0, 16, vsrcperm0, vsrcperm1, src);
