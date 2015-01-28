@@ -195,7 +195,8 @@ static void h264_idct_add_altivec(uint8_t *dst, int16_t *block, int stride)
 #define GET_2PERM(ldv, stv, d) {}
 #define dstv_load(d) vec_u8 dstv = vec_vsx_ld(0, d)
 #define dest_unligned_store(d)\
-    vec_u8 dst8 = vec_perm((vec_u8)idstsum8, dstv, vcprm(2,3,s2,s3));\
+    static vec_u8 VCPRM23s2s3 = vcprm(2,3,s2,s3);\
+    vec_u8 dst8 = vec_perm((vec_u8)idstsum8, dstv, VCPRM23s2s3);\
     vec_vsx_st(dst8, 0, d)
 #endif /* HAVE_BIGENDIAN */
 
