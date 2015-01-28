@@ -45,6 +45,7 @@ static void gmc1_altivec(uint8_t *dst /* align 8 */, uint8_t *src /* align1 */,
     register const vector unsigned short vcsr8 =
         (const vector unsigned short) vec_splat_u16(8);
     register vector unsigned char dstv, dstv2, srcvB, srcvC, srcvD;
+    register vector unsigned char permmask;
     register vector unsigned short tempB, tempC, tempD;
     unsigned long dst_odd        = (unsigned long) dst & 0x0000000F;
     unsigned long src_really_odd = (unsigned long) src & 0x0000000F;
@@ -75,7 +76,6 @@ static void gmc1_altivec(uint8_t *dst /* align 8 */, uint8_t *src /* align1 */,
     srcvB = vec_mergeh(vczero, srcvB);
 
     for (i = 0; i < h; i++) {
-        dst_odd        =   (unsigned long) dst            & 0x0000000F;
         src_really_odd = (((unsigned long) src) + stride) & 0x0000000F;
 
         dstv = vec_ld(0, dst);
@@ -112,10 +112,8 @@ static void gmc1_altivec(uint8_t *dst /* align 8 */, uint8_t *src /* align1 */,
 
         dstv2 = vec_pack(tempD, (vector unsigned short) vczero);
 
-        if (dst_odd)
-            dstv2 = vec_perm(dstv, dstv2, vcprm(0, 1, s0, s1));
-        else
-            dstv2 = vec_perm(dstv, dstv2, vcprm(s0, s1, 2, 3));
+        permmask = rightside_permmask(dst_odd);
+        dstv2 = vec_perm(dstv, dstv2, permmask);
 
         vec_st(dstv2, 0, dst);
 
