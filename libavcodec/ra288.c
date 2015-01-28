@@ -88,10 +88,10 @@ static av_cold int ra288_decode_init(AVCodecContext *avctx)
     return 0;
 }
 
-static void convolve(float *tgt, const float *src, int len, int n)
+static void convolve(AVFloatDSPContext *fdsp, float *tgt, const float *src, int len, int n)
 {
     for (; n >= 0; n--)
-        tgt[n] = avpriv_scalarproduct_float_c(src, src - n, len);
+        tgt[n] = fdsp->scalarproduct_float(src, src - n, len);
 
 }
 
@@ -159,8 +159,8 @@ static void do_hybrid_window(RA288Context *ractx,
 
     ractx->fdsp->vector_fmul(work, window, hist, FFALIGN(order + n + non_rec, 16));
 
-    convolve(buffer1, work + order    , n      , order);
-    convolve(buffer2, work + order + n, non_rec, order);
+    convolve(ractx->fdsp, buffer1, work + order    , n      , order);
+    convolve(ractx->fdsp, buffer2, work + order + n, non_rec, order);
 
     for (i=0; i <= order; i++) {
         out2[i] = out2[i] * 0.5625 + buffer1[i];
