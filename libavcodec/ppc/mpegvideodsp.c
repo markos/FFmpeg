@@ -47,7 +47,6 @@ static void gmc1_altivec(uint8_t *dst /* align 8 */, uint8_t *src /* align1 */,
     register vector unsigned char dstv, dstv2, srcvB, srcvC, srcvD;
     register vector unsigned char permmask;
     register vector unsigned short tempB, tempC, tempD;
-    unsigned long dst_odd        = (unsigned long) dst & 0x0000000F;
     unsigned long src_really_odd = (unsigned long) src & 0x0000000F;
     register vector unsigned short tempA =
         vec_ld(0, (const unsigned short *) ABCD);
@@ -112,7 +111,7 @@ static void gmc1_altivec(uint8_t *dst /* align 8 */, uint8_t *src /* align1 */,
 
         dstv2 = vec_pack(tempD, (vector unsigned short) vczero);
 
-        permmask = rightside_permmask(dst_odd);
+        permmask = rightside_permmask(dst);
         dstv2 = vec_perm(dstv, dstv2, permmask);
 
         vec_st(dstv2, 0, dst);
