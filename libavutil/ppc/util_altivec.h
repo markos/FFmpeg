@@ -98,11 +98,9 @@ do { \
 
 
 #if HAVE_BIGENDIAN
-#define VEC_LD(offset,b)                                   \
-    vec_perm(vec_ld(offset, b), vec_ld((offset)+15, b), vec_lvsl(offset, b))
+#define aligned_load(offset,b) vec_ld(offset, b)
 #else
-#define VEC_LD(offset,b)                                   \
-    vec_vsx_ld(offset, b)
+#define aligned_load(offset,b) vec_vsx_ld(offset, b)
 #endif
 
 /** @brief loads unaligned vector @a *src with offset @a offset
@@ -122,8 +120,8 @@ static inline vec_u8 load_with_perm_vec(int offset, const uint8_t *src, vec_u8 p
     return vec_perm(a, b, perm_vec);
 }
 #else
-#define unaligned_load(a,b) VEC_LD(a,b)
-#define load_with_perm_vec(a,b,c) VEC_LD(a,b)
+#define unaligned_load(a,b) aligned_load(a,b)
+#define load_with_perm_vec(a,b,c) aligned_load(a,b)
 #endif
 
 
@@ -132,7 +130,7 @@ static inline vec_u8 load_with_perm_vec(int offset, const uint8_t *src, vec_u8 p
  * @param perm_vec the align permute vector to combine the two loads from lvsl
  */
 
-#define vec_unaligned_load(b)  VEC_LD(0, b)
+#define vec_unaligned_load(b)  vec_perm(vec_ld(0, b), vec_ld(15, b), vec_lvsl(0, b))
 
 #if HAVE_BIGENDIAN
 #define VEC_MERGEH(a, b) vec_mergeh(a, b)
