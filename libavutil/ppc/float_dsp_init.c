@@ -31,8 +31,12 @@ av_cold void ff_float_dsp_init_ppc(AVFloatDSPContext *fdsp, int bit_exact)
         return;
 
     fdsp->vector_fmul = ff_vector_fmul_altivec;
+    fdsp->vector_fmac_scalar = ff_vector_fmac_scalar_altivec;
     fdsp->vector_fmul_add = ff_vector_fmul_add_altivec;
     fdsp->vector_fmul_reverse = ff_vector_fmul_reverse_altivec;
+    fdsp->vector_fmul_scalar = ff_vector_fmul_scalar_altivec;
+    fdsp->butterflies_float = ff_butterflies_float_altivec;
+    fdsp->scalarproduct_float = ff_avpriv_scalarproduct_float_altivec;
 
     if (!bit_exact) {
         fdsp->vector_fmul_window = ff_vector_fmul_window_altivec;

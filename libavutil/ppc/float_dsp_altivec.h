@@ -21,6 +21,12 @@
 #ifndef AVUTIL_PPC_FLOAT_DSP_ALTIVEC_H
 #define AVUTIL_PPC_FLOAT_DSP_ALTIVEC_H
 
+void ff_vector_fmac_scalar_altivec(float *dst, const float *src, float mul,
+                                 int len);
+
+void ff_vector_fmul_scalar_altivec(float *dst, const float *src, float mul,
+                                 int len);
+
 void ff_vector_fmul_altivec(float *dst, const float *src0,
                             const float *src1, int len);
 
@@ -34,5 +40,10 @@ void ff_vector_fmul_add_altivec(float *dst, const float *src0,
 
 void ff_vector_fmul_reverse_altivec(float *dst, const float *src0,
                                     const float *src1, int len);
+
+void ff_butterflies_float_altivec(float *av_restrict v1, float *av_restrict v2,
+                                int len);
+
+float ff_avpriv_scalarproduct_float_altivec(const float *v1, const float *v2, int len);
 
 #endif /* AVUTIL_PPC_FLOAT_DSP_ALTIVEC_H */

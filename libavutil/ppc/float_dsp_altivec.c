@@ -18,8 +18,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <stdio.h>
+
+#include "libavutil/mem.h"
 #include "util_altivec.h"
 #include "float_dsp_altivec.h"
+
 
 void ff_vector_fmul_altivec(float *dst, const float *src0, const float *src1,
                             int len)
@@ -37,11 +41,45 @@ void ff_vector_fmul_altivec(float *dst, const float *src0, const float *src1,
     }
 }
 
+void ff_vector_fmac_scalar_altivec(float *dst, const float *src, float mul,
+                                 int len)
+{
+    DECLARE_ALIGNED(16, float, vmul)[4];
+    int i;
+    vmul[0] = mul;
+    vector float d0, s0;
+    vector float mulv = vec_ld(0, vmul);
+    mulv = vec_splat(mulv, 0);
+    for (i = 0; i < len; i += 4) {
+        s0 = vec_ld( 0, src + i);
+        d0 = vec_ld( 0, dst + i);
+        d0 = vec_madd(s0, mulv, d0);
+        vec_st(d0,  0, dst + i);
+    }
+}
+
+void ff_vector_fmul_scalar_altivec(float *dst, const float *src, float mul,
+                                 int len)
+{
+    DECLARE_ALIGNED(16, float, vmul)[4];
+    int i;
+    vmul[0] = mul;
+    vector float d0, zero = ((vector float) vec_splat_u32(0));
+    vector float mulv = vec_ld(0, vmul);
+    mulv = vec_splat(mulv, 0);
+    for (i = 0; i < len; i += 4) {
+        d0 = vec_ld( 0, src + i);
+        d0 = vec_madd(d0, mulv, zero);
+        vec_st(d0,  0, dst + i);
+    }
+}
+
+
 void ff_vector_fmul_window_altivec(float *dst, const float *src0,
                                    const float *src1, const float *win, int len)
 {
     vector float zero, t0, t1, s0, s1, wi, wj;
-    const vector unsigned char reverse = vcprm(3, 2, 1, 0);
+    static const vec_u8 reverse = vcprm(3, 2, 1, 0);
     int i, j;
 
     dst  += len;
@@ -76,6 +114,8 @@ void ff_vector_fmul_add_altivec(float *dst, const float *src0,
 {
     int i;
     vector float d, ss0, ss1, ss2, t0, t1, edges;
+    static const vec_u8 VCPRM0123 = vcprm(0, 1, 2, 3);
+    static const vec_u8 VCPRMs0s1s2s3 = vcprm(s0, s1, s2, s3);
 
     for (i = 0; i < len - 3; i += 4) {
         t0 = vec_ld(0, dst + i);
@@ -83,10 +123,10 @@ void ff_vector_fmul_add_altivec(float *dst, const float *src0,
         ss0 = vec_ld(0, src0 + i);
         ss1 = vec_ld(0, src1 + i);
         ss2 = vec_ld(0, src2 + i);
-        edges = vec_perm(t1, t0, vcprm(0, 1, 2, 3));
+        edges = vec_perm(t1, t0, VCPRM0123);
         d = vec_madd(ss0, ss1, ss2);
-        t1 = vec_perm(d, edges, vcprm(s0,s1,s2,s3));
-        t0 = vec_perm(edges, d, vcprm(s0,s1,s2,s3));
+        t1 = vec_perm(d, edges, VCPRMs0s1s2s3);
+        t0 = vec_perm(edges, d, VCPRMs0s1s2s3);
         vec_st(t1, 15, dst + i);
         vec_st(t0, 0, dst + i);
     }
@@ -120,3 +160,103 @@ void ff_vector_fmul_reverse_altivec(float *dst, const float *src0,
         vec_st(d, 16, dst + i);
     }
 }
+
+void ff_butterflies_float_altivec(float *av_restrict v1, float *av_restrict v2,
+                                int len)
+{
+    vector float vv1[4], vv2[4], t[4];
+
+    // unroll 4 times
+    while (len >= 16) {
+        vv1[0] = vec_ld( 0, v1);
+        vv1[1] = vec_ld(16, v1);
+        vv1[2] = vec_ld(32, v1);
+        vv1[3] = vec_ld(48, v1);
+        vv2[0] = vec_ld( 0, v2);
+        vv2[1] = vec_ld(16, v2);
+        vv2[2] = vec_ld(32, v2);
+        vv2[3] = vec_ld(48, v2);
+        t[0]   = vec_sub(vv1[0], vv2[0]);
+        t[1]   = vec_sub(vv1[1], vv2[1]);
+        t[2]   = vec_sub(vv1[2], vv2[2]);
+        t[3]   = vec_sub(vv1[3], vv2[3]);
+        vv1[0] = vec_add(vv1[0], vv2[0]);
+        vv1[1] = vec_add(vv1[1], vv2[1]);
+        vv1[2] = vec_add(vv1[2], vv2[2]);
+        vv1[3] = vec_add(vv1[3], vv2[3]);
+        vec_st(vv1[0], 0, v1);
+        vec_st(vv1[1],16, v1);
+        vec_st(vv1[2],32, v1);
+        vec_st(vv1[3],48, v1);
+        vec_st(t[0], 0, v2);
+        vec_st(t[1],16, v2);
+        vec_st(t[2],32, v2);
+        vec_st(t[3],48, v2);
+        len -= 16;
+        v1 += 16; v2 += 16;
+    }
+    // handle the rest
+    while (len >= 4) {
+        vv1[0] = vec_ld( 0, v1);
+        vv2[0] = vec_ld( 0, v2);
+        t[0]   = vec_sub(vv1[0], vv2[0]);
+        vec_st(vv1[0], 0, v1);
+        vec_st(t[0], 0, v2);
+        len -= 4;
+        v1 += 4; v2 += 4;
+    }
+}
+
+float ff_avpriv_scalarproduct_float_altivec(const float *v1, const float *v2, int len)
+{
+    DECLARE_ALIGNED(16, float, p);
+    vector float vv1[4], vv2[4], t[4];
+
+    t[0] = (vector float) vec_splat_u32(0);
+    t[1] = t[0];
+    t[2] = t[0];
+    t[3] = t[0];
+
+    // unroll 4 times
+    while (len >= 16) {
+        vv1[0] = vec_ld( 0, v1);
+        vv1[1] = vec_ld(16, v1);
+        vv1[2] = vec_ld(32, v1);
+        vv1[3] = vec_ld(48, v1);
+        vv2[0] = vec_ld( 0, v2);
+        vv2[1] = vec_ld(16, v2);
+        vv2[2] = vec_ld(32, v2);
+        vv2[3] = vec_ld(48, v2);
+        t[0] = vec_madd(vv1[0], vv2[0], t[0]);
+        t[1] = vec_madd(vv1[1], vv2[1], t[1]);
+        t[2] = vec_madd(vv1[2], vv2[2], t[2]);
+        t[3] = vec_madd(vv1[3], vv2[3], t[3]);
+        len -= 16;
+        v1 += 16; v2 += 16;
+    }
+    t[0] = vec_add(t[0], t[1]);
+    t[2] = vec_add(t[2], t[3]);
+    t[0] = vec_add(t[0], t[2]);
+
+    // handle the rest
+    while (len >= 4) {
+        vv1[0] = vec_ld(0, v1);
+        vv2[0] = vec_ld(0, v2);
+        t[0] = vec_madd(vv1[0], vv2[0], t[0]);
+        len -= 4;
+        v1 += 4; v2 += 4;
+    }
+    // Sum across the vector elements
+    t[1] = vec_sld(t[0], t[0], 8);
+    t[2] = vec_add(t[0], t[1]);
+    t[3] = vec_sld(t[2], t[2], 4);
+    t[0] = vec_add(t[2], t[3]);
+    vec_ste(t[0], 0, &p);
+
+    for(int i=0; i< len; i++)
+        p += v1[i] * v2[i];
+
+    return p;
+}
+
+
