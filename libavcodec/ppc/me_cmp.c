@@ -114,14 +114,14 @@ static int sad16_y2_altivec(MpegEncContext *v, uint8_t *pix1, uint8_t *pix2,
      * Read unaligned pixels into our vectors. The vectors are as follows:
      * pix2v: pix2[0] - pix2[15]
      * Split the pixel vectors into shorts. */
-    vector unsigned char pix2v = VEC_LD(0, pix2);
+    vector unsigned char pix2v = unaligned_load(0, pix2);
 
     for (i = 0; i < h; i++) {
         /* Read unaligned pixels into our vectors. The vectors are as follows:
          * pix1v: pix1[0] - pix1[15]
          * pix3v: pix3[0] - pix3[15] */
         pix1v = vec_ld(0,  pix1);
-        pix3v = VEC_LD(0,  pix3);
+        pix3v = unaligned_load(0,  pix3);
 
         /* Calculate the average vector. */
         avgv = vec_avg(pix2v, pix3v);
@@ -245,8 +245,8 @@ static int sad16_altivec(MpegEncContext *v, uint8_t *pix1, uint8_t *pix2,
 
     for (i = 0; i < h; i++) {
         /* Read potentially unaligned pixels into t1 and t2. */
-        vector unsigned char t1 =vec_ld(0, pix1);
-        vector unsigned char t2 = VEC_LD(0, pix2);
+        vector unsigned char t1 = aligned_load(0, pix1);
+        vector unsigned char t2 = unaligned_load(0, pix2);
 
         /* Calculate a sum of abs differences vector. */
         vector unsigned char t3 = vec_max(t1, t2);
@@ -285,8 +285,8 @@ static int sad8_altivec(MpegEncContext *v, uint8_t *pix1, uint8_t *pix2,
         /* Read potentially unaligned pixels into t1 and t2.
          * Since we're reading 16 pixels, and actually only want 8,
          * mask out the last 8 pixels. The 0s don't change the sum. */
-        vector unsigned char pix1l = VEC_LD(0, pix1);
-        vector unsigned char pix2l = VEC_LD(0, pix2);
+        vector unsigned char pix1l = unaligned_load(0, pix1);
+        vector unsigned char pix2l = unaligned_load(0, pix2);
         vector unsigned char t1 = vec_and(pix1l, permclear);
         vector unsigned char t2 = vec_and(pix2l, permclear);
 
@@ -329,8 +329,8 @@ static int sse8_altivec(MpegEncContext *v, uint8_t *pix1, uint8_t *pix2,
         /* Read potentially unaligned pixels into t1 and t2.
          * Since we're reading 16 pixels, and actually only want 8,
          * mask out the last 8 pixels. The 0s don't change the sum. */
-        vector unsigned char t1 = vec_and(VEC_LD(0, pix1), permclear);
-        vector unsigned char t2 = vec_and(VEC_LD(0, pix2), permclear);
+        vector unsigned char t1 = vec_and(unaligned_load(0, pix1), permclear);
+        vector unsigned char t2 = vec_and(unaligned_load(0, pix2), permclear);
 
         /* Since we want to use unsigned chars, we can take advantage
          * of the fact that abs(a - b) ^ 2 = (a - b) ^ 2. */
@@ -370,7 +370,7 @@ static int sse16_altivec(MpegEncContext *v, uint8_t *pix1, uint8_t *pix2,
     for (i = 0; i < h; i++) {
         /* Read potentially unaligned pixels into t1 and t2. */
         vector unsigned char t1 = vec_ld(0, pix1);
-        vector unsigned char t2 = VEC_LD(0, pix2);
+        vector unsigned char t2 = unaligned_load(0, pix2);
 
         /* Since we want to use unsigned chars, we can take advantage
          * of the fact that abs(a - b) ^ 2 = (a - b) ^ 2. */
