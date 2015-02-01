@@ -591,11 +591,21 @@ union unaligned_16 { uint16_t l; } __attribute__((packed)) av_alias;
 #endif
 
 #ifndef AV_COPY128
+#ifdef av_copy128_aligned
+#   define AV_COPY128(d, s)                            \
+    if ((uint32_t)(d|s) % 16 == 0)                     \
+        av_copy128_aligned((uint8_t*)d, (uint8_t*)s);  \
+    else {                                             \
+        AV_COPY64(d, s);                               \
+        AV_COPY64((char*)(d)+8, (char*)(s)+8);         \
+    }
+#else
 #   define AV_COPY128(d, s)                    \
     do {                                       \
         AV_COPY64(d, s);                       \
         AV_COPY64((char*)(d)+8, (char*)(s)+8); \
     } while(0)
+#endif
 #endif
 
 #define AV_SWAP(n, a, b) FFSWAP(av_alias##n, *(av_alias##n*)(a), *(av_alias##n*)(b))
@@ -619,11 +629,21 @@ union unaligned_16 { uint16_t l; } __attribute__((packed)) av_alias;
 #endif
 
 #ifndef AV_ZERO128
+#ifdef av_zero128_aligned
+#   define AV_ZERO128(d)                 \
+    if ((uint32_t)(d) % 16 == 0)         \
+        av_zero128_aligned((uint8_t*)d); \
+    else {                               \
+        AV_ZERO64(d);                    \
+        AV_ZERO64((char*)(d)+8);         \
+    }
+#else
 #   define AV_ZERO128(d)         \
     do {                         \
         AV_ZERO64(d);            \
         AV_ZERO64((char*)(d)+8); \
     } while(0)
+#endif
 #endif
 
 #endif /* AVUTIL_INTREADWRITE_H */
