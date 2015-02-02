@@ -176,6 +176,49 @@ static inline vec_u8 rightside_permmask(uint8_t *addr) {
     return result;
 }
 
+/* Need to produce one of these permutation masks, depending on whether addr
+   is 8-byte or 16-byte aligned:
+   10 11 12 13 14 15 16 17 08 09 0a 0b 0c 0d 0e 0f  (16-byte aligned)
+   00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17  (8-byte aligned)
+ */
+
+static inline vec_u8 rightside_permmask(uint8_t *addr) {
+    vec_u8 v, termsub, masksub, result;
+    vec_u8 v_0 = vec_splat_u8(0), v_8 = vec_splat_u8(8), v_16, v_24;
+    v_16 = vec_add(v_8, v_8);
+    v_24 = vec_add(v_16, v_8);
+
+    /* Will produce either 16-byte aligned or 8-byte aligned arrays:
+       00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f  (16-byte aligned)
+       08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17  (8-byte aligned)
+     */
+    v = vec_lvsl(0, addr);
+
+    /* Shift 8bytes to the left, and add 8 bytes to the lot, will produce one of the following:
+       10 11 12 13 14 15 16 17 08 09 0a 0b 0c 0d 0e 0f  (16-byte aligned)
+       18 19 1a 1b 1c 1d 1e 1f 10 11 12 13 14 15 16 17  (8-byte aligned)
+     */
+    result = vec_sld(v, v, 8);
+    result = vec_add(result, v_8);
+
+    /* Get the negated mask after comparing if <24(18 hex), fill the elements with '0x18':
+       00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  (16-byte aligned)
+       18 18 18 18 18 18 18 18 00 00 00 00 00 00 00 00  (8-byte aligned)
+     */
+    masksub = (vec_u8) vec_cmplt(result, v_24);
+    masksub = vec_nor(masksub, masksub);
+    termsub = vec_sel(v_0, v_24, masksub);
+
+    /* Subtract from the result:
+       10 11 12 13 14 15 16 17 08 09 0a 0b 0c 0d 0e 0f  (16-byte aligned, no change)
+       00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17  (8-byte aligned)
+       QED
+     */
+    result = vec_sub(result, termsub);
+
+    return result;
+}
+
 #endif /* HAVE_ALTIVEC */
 
 #endif /* AVUTIL_PPC_UTIL_ALTIVEC_H */
