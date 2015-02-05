@@ -51,22 +51,40 @@ void ff_put_pixels16_altivec(uint8_t *block, const uint8_t *pixels, ptrdiff_t li
     register ptrdiff_t line_size_3 = line_size + line_size_2;
     register ptrdiff_t line_size_4 = line_size << 2;
 
-// hand-unrolling the loop by 4 gains about 15%
-// mininum execution time goes from 74 to 60 cycles
-// it's faster than -funroll-loops, but using
-// -funroll-loops w/ this is bad - 74 cycles again.
-// all this is on a 7450, tuning for the 7450
-    for (i = 0; i < h; i += 4) {
-        pixelsv1  = unaligned_load( 0, pixels);
-        pixelsv1B = unaligned_load(line_size, pixels);
-        pixelsv1C = unaligned_load(line_size_2, pixels);
-        pixelsv1D = unaligned_load(line_size_3, pixels);
-        VEC_ST(pixelsv1, 0, (unsigned char*)block);
-        VEC_ST(pixelsv1B, line_size, (unsigned char*)block);
-        VEC_ST(pixelsv1C, line_size_2, (unsigned char*)block);
-        VEC_ST(pixelsv1D, line_size_3, (unsigned char*)block);
-        pixels+=line_size_4;
-        block +=line_size_4;
+    // hand-unrolling the loop by 4 gains about 15%
+    // mininum execution time goes from 74 to 60 cycles
+    // it's faster than -funroll-loops, but using
+    // -funroll-loops w/ this is bad - 74 cycles again.
+    // all this is on a 7450, tuning for the 7450
+
+    // split aligned/unaligned cases, saves 4x(vec_ld+vec_lvsl+vec_perm)
+    // per iteration if aligned
+    if ((ptrdiff_t)(pixels) % 16 == 0) {
+        for (i = 0; i < h; i += 4) {
+            pixelsv1  = aligned_load( 0, pixels);
+            pixelsv1B = aligned_load(line_size, pixels);
+            pixelsv1C = aligned_load(line_size_2, pixels);
+            pixelsv1D = aligned_load(line_size_3, pixels);
+            VEC_ST(pixelsv1, 0, (unsigned char*)block);
+            VEC_ST(pixelsv1B, line_size, (unsigned char*)block);
+            VEC_ST(pixelsv1C, line_size_2, (unsigned char*)block);
+            VEC_ST(pixelsv1D, line_size_3, (unsigned char*)block);
+            pixels+=line_size_4;
+            block +=line_size_4;
+        }
+    } else {
+        for (i = 0; i < h; i += 4) {
+            pixelsv1  = unaligned_load( 0, pixels);
+            pixelsv1B = unaligned_load(line_size, pixels);
+            pixelsv1C = unaligned_load(line_size_2, pixels);
+            pixelsv1D = unaligned_load(line_size_3, pixels);
+            VEC_ST(pixelsv1, 0, (unsigned char*)block);
+            VEC_ST(pixelsv1B, line_size, (unsigned char*)block);
+            VEC_ST(pixelsv1C, line_size_2, (unsigned char*)block);
+            VEC_ST(pixelsv1D, line_size_3, (unsigned char*)block);
+            pixels+=line_size_4;
+            block +=line_size_4;
+        }
     }
 }
 
@@ -77,13 +95,25 @@ void ff_avg_pixels16_altivec(uint8_t *block, const uint8_t *pixels, ptrdiff_t li
     register vector unsigned char pixelsv, blockv;
 
     int i;
-    for (i = 0; i < h; i++) {
-        blockv = vec_ld(0, block);
-        pixelsv = unaligned_load( 0, pixels);
-        blockv = vec_avg(blockv,pixelsv);
-        vec_st(blockv, 0, (unsigned char*)block);
-        pixels+=line_size;
-        block +=line_size;
+
+    if ((ptrdiff_t)(pixels) % 16 == 0) {
+        for (i = 0; i < h; i++) {
+            blockv = aligned_load(0, block);
+            pixelsv = aligned_load( 0, pixels);
+            blockv = vec_avg(blockv,pixelsv);
+            vec_st(blockv, 0, (unsigned char*)block);
+            pixels+=line_size;
+            block +=line_size;
+        }
+    } else {
+        for (i = 0; i < h; i++) {
+            blockv = aligned_load(0, block);
+            pixelsv = unaligned_load( 0, pixels);
+            blockv = vec_avg(blockv,pixelsv);
+            vec_st(blockv, 0, (unsigned char*)block);
+            pixels+=line_size;
+            block +=line_size;
+        }
     }
 }
 
@@ -93,21 +123,40 @@ static void avg_pixels8_altivec(uint8_t * block, const uint8_t * pixels, ptrdiff
     register vector unsigned char pixelsv1, pixelsv2, pixelsv, blockv, permmask;
     int i;
 
-    for (i = 0; i < h; i++) {
-        /* block is 8 bytes-aligned, so we're either in the
-           left block (16 bytes-aligned) or in the right block (not) */
-        permmask = rightside_permmask(block, RIGHTSIDE_PERMMASKS);
-        blockv = vec_ld(0, block);
-        pixelsv = unaligned_load( 0, pixels);
+    if ((ptrdiff_t)(pixels) % 16 == 0) {
+        for (i = 0; i < h; i++) {
+            /* block is 8 bytes-aligned, so we're either in the
+               left block (16 bytes-aligned) or in the right block (not) */
+            permmask = rightside_permmask(block, RIGHTSIDE_PERMMASKS);
+            blockv = vec_ld(0, block);
+            pixelsv = aligned_load( 0, pixels);
 
-        pixelsv = vec_perm(blockv, pixelsv, permmask);
+            pixelsv = vec_perm(blockv, pixelsv, permmask);
 
-        blockv = vec_avg(blockv, pixelsv);
+            blockv = vec_avg(blockv, pixelsv);
 
-        vec_st(blockv, 0, block);
+            vec_st(blockv, 0, block);
 
-        pixels += line_size;
-        block += line_size;
+            pixels += line_size;
+            block += line_size;
+        }
+    } else {
+        for (i = 0; i < h; i++) {
+            /* block is 8 bytes-aligned, so we're either in the
+               left block (16 bytes-aligned) or in the right block (not) */
+            permmask = rightside_permmask(block, RIGHTSIDE_PERMMASKS);
+            blockv = vec_ld(0, block);
+            pixelsv = unaligned_load( 0, pixels);
+
+            pixelsv = vec_perm(blockv, pixelsv, permmask);
+
+            blockv = vec_avg(blockv, pixelsv);
+
+            vec_st(blockv, 0, block);
+
+            pixels += line_size;
+            block += line_size;
+        }
     }
 }
 
@@ -237,6 +286,7 @@ static void put_pixels16_xy2_altivec(uint8_t * block, const uint8_t * pixels, pt
                              (vector unsigned short)pixelsv4);
         pixelssum2 = vec_add((vector unsigned short)pixelsv1,
                              (vector unsigned short)pixelsv2);
+
         temp4 = vec_add(pixelssum3, pixelssum4);
         temp4 = vec_sra(temp4, vctwo);
         temp3 = vec_add(pixelssum1, pixelssum2);
