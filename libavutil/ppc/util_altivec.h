@@ -160,6 +160,21 @@ static inline vec_u8 load_with_perm_vec(int offset, const uint8_t *src, vec_u8 p
 #define VEC_SLD16(a,b,c) vec_sld(b, a, c)
 #endif
 
+void rightside_permmask_init(vec_u8 permmasks[2]);
+
+static inline vec_u8 rightside_permmask(uint8_t *addr, vec_u8 *permmasks) {
+    const vec_u8 lvsl0 = vec_lvsl(0, (uint8_t*)0);
+    vec_u8 v, mask, result;
+
+    v = vec_lvsl(0, addr);
+
+    mask = (vec_u8) vec_cmpeq(v, lvsl0);
+
+    result = vec_sel(permmasks[1], permmasks[0], mask);
+
+    return result;
+}
+
 #endif /* HAVE_ALTIVEC */
 
 #endif /* AVUTIL_PPC_UTIL_ALTIVEC_H */

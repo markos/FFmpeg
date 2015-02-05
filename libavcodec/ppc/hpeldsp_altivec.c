@@ -35,6 +35,9 @@
 #include "hpeldsp_altivec.h"
 
 #if HAVE_ALTIVEC
+
+vector unsigned char RIGHTSIDE_PERMMASKS[2];
+
 /* next one assumes that ((line_size % 16) == 0) */
 void ff_put_pixels16_altivec(uint8_t *block, const uint8_t *pixels, ptrdiff_t line_size, int h)
 {
@@ -87,30 +90,25 @@ void ff_avg_pixels16_altivec(uint8_t *block, const uint8_t *pixels, ptrdiff_t li
 /* next one assumes that ((line_size % 8) == 0) */
 static void avg_pixels8_altivec(uint8_t * block, const uint8_t * pixels, ptrdiff_t line_size, int h)
 {
-    register vector unsigned char pixelsv1, pixelsv2, pixelsv, blockv;
+    register vector unsigned char pixelsv1, pixelsv2, pixelsv, blockv, permmask;
     int i;
 
-   for (i = 0; i < h; i++) {
-       /* block is 8 bytes-aligned, so we're either in the
-          left block (16 bytes-aligned) or in the right block (not) */
-       int rightside = ((unsigned long)block & 0x0000000F);
+    for (i = 0; i < h; i++) {
+        /* block is 8 bytes-aligned, so we're either in the
+           left block (16 bytes-aligned) or in the right block (not) */
+        permmask = rightside_permmask(block, RIGHTSIDE_PERMMASKS);
+        blockv = vec_ld(0, block);
+        pixelsv = VEC_LD( 0, pixels);
 
-       blockv = vec_ld(0, block);
-       pixelsv = VEC_LD( 0, pixels);
+        pixelsv = vec_perm(blockv, pixelsv, permmask);
 
-       if (rightside) {
-           pixelsv = vec_perm(blockv, pixelsv, vcprm(0,1,s0,s1));
-       } else {
-           pixelsv = vec_perm(blockv, pixelsv, vcprm(s0,s1,2,3));
-       }
+        blockv = vec_avg(blockv, pixelsv);
 
-       blockv = vec_avg(blockv, pixelsv);
+        vec_st(blockv, 0, block);
 
-       vec_st(blockv, 0, block);
-
-       pixels += line_size;
-       block += line_size;
-   }
+        pixels += line_size;
+        block += line_size;
+    }
 }
 
 /* next one assumes that ((line_size % 8) == 0) */
@@ -119,6 +117,7 @@ static void put_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels, ptrdi
     register int i;
     register vector unsigned char pixelsv1, pixelsv2, pixelsavg;
     register vector unsigned char blockv;
+    register vector unsigned char permmask;
     register vector unsigned short pixelssum1, pixelssum2, temp3;
     register const vector unsigned char vczero = (const vector unsigned char)vec_splat_u8(0);
     register const vector unsigned short vctwo = (const vector unsigned short)vec_splat_u16(2);
@@ -133,7 +132,7 @@ static void put_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels, ptrdi
     pixelssum1 = vec_add(pixelssum1, vctwo);
 
     for (i = 0; i < h ; i++) {
-        int rightside = ((unsigned long)block & 0x0000000F);
+        permmask = rightside_permmask(block, RIGHTSIDE_PERMMASKS);
         blockv = vec_ld(0, block);
 
         pixelsv1 = unaligned_load(line_size, pixels);
@@ -147,11 +146,7 @@ static void put_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels, ptrdi
         pixelssum1 = vec_add(pixelssum2, vctwo);
         pixelsavg = vec_packsu(temp3, (vector unsigned short) vczero);
 
-        if (rightside) {
-            blockv = vec_perm(blockv, pixelsavg, vcprm(0, 1, s0, s1));
-        } else {
-            blockv = vec_perm(blockv, pixelsavg, vcprm(s0, s1, 2, 3));
-        }
+        blockv = vec_perm(blockv, pixelsavg, permmask);
 
         vec_st(blockv, 0, block);
 
@@ -166,6 +161,7 @@ static void put_no_rnd_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels
     register int i;
     register vector unsigned char pixelsv1, pixelsv2, pixelsavg;
     register vector unsigned char blockv;
+    register vector unsigned char permmask;
     register vector unsigned short pixelssum1, pixelssum2, temp3;
     register const vector unsigned char vczero = (const vector unsigned char)vec_splat_u8(0);
     register const vector unsigned short vcone = (const vector unsigned short)vec_splat_u16(1);
@@ -180,7 +176,7 @@ static void put_no_rnd_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels
     pixelssum1 = vec_add(pixelssum1, vcone);
 
     for (i = 0; i < h ; i++) {
-        int rightside = ((unsigned long)block & 0x0000000F);
+        permmask = rightside_permmask(block, RIGHTSIDE_PERMMASKS);
         blockv = vec_ld(0, block);
 
         pixelsv1 = unaligned_load(line_size, pixels);
@@ -194,11 +190,7 @@ static void put_no_rnd_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels
         pixelssum1 = vec_add(pixelssum2, vcone);
         pixelsavg = vec_packsu(temp3, (vector unsigned short) vczero);
 
-        if (rightside) {
-            blockv = vec_perm(blockv, pixelsavg, vcprm(0, 1, s0, s1));
-        } else {
-            blockv = vec_perm(blockv, pixelsavg, vcprm(s0, s1, 2, 3));
-        }
+        blockv = vec_perm(blockv, pixelsavg, permmask);
 
         vec_st(blockv, 0, block);
 
@@ -322,6 +314,7 @@ static void avg_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels, ptrdi
     register int i;
     register vector unsigned char pixelsv1, pixelsv2, pixelsavg;
     register vector unsigned char blockv, blocktemp;
+    register vector unsigned char permmask;
     register vector unsigned short pixelssum1, pixelssum2, temp3;
 
     register const vector unsigned char vczero = (const vector unsigned char)
@@ -338,7 +331,7 @@ static void avg_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels, ptrdi
     pixelssum1 = vec_add(pixelssum1, vctwo);
 
     for (i = 0; i < h ; i++) {
-        int rightside = ((unsigned long)block & 0x0000000F);
+        permmask = rightside_permmask(block, RIGHTSIDE_PERMMASKS);
         blockv = vec_ld(0, block);
 
         pixelsv1 = unaligned_load(line_size, pixels);
@@ -353,11 +346,7 @@ static void avg_pixels8_xy2_altivec(uint8_t *block, const uint8_t *pixels, ptrdi
         pixelssum1 = vec_add(pixelssum2, vctwo);
         pixelsavg = vec_packsu(temp3, (vector unsigned short) vczero);
 
-        if (rightside) {
-            blocktemp = vec_perm(blockv, pixelsavg, vcprm(0, 1, s0, s1));
-        } else {
-            blocktemp = vec_perm(blockv, pixelsavg, vcprm(s0, s1, 2, 3));
-        }
+        blocktemp = vec_perm(blockv, pixelsavg, permmask);
 
         blockv = vec_avg(blocktemp, blockv);
         vec_st(blockv, 0, block);
@@ -373,6 +362,8 @@ av_cold void ff_hpeldsp_init_ppc(HpelDSPContext *c, int flags)
 #if HAVE_ALTIVEC
     if (!PPC_ALTIVEC(av_get_cpu_flags()))
         return;
+
+    rightside_permmask_init(RIGHTSIDE_PERMMASKS);
 
     c->avg_pixels_tab[0][0]        = ff_avg_pixels16_altivec;
     c->avg_pixels_tab[1][0]        = avg_pixels8_altivec;
