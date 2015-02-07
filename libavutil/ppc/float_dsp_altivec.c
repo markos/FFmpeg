@@ -200,6 +200,7 @@ void ff_butterflies_float_altivec(float *av_restrict v1, float *av_restrict v2,
         vv1[0] = vec_ld( 0, v1);
         vv2[0] = vec_ld( 0, v2);
         t[0]   = vec_sub(vv1[0], vv2[0]);
+        vv1[0] = vec_add(vv1[0], vv2[0]);
         vec_st(vv1[0], 0, v1);
         vec_st(t[0], 0, v2);
         len -= 4;
