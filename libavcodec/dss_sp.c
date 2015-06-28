@@ -470,7 +470,7 @@ static void dss_sp_add_pulses(int32_t *vector_buf,
                                          0x4000) >> 15;
 }
 
-static void dss_sp_gen_exc(int32_t *vector, int32_t *prev_exc,
+static void dss_sp_gen_exc(int32_t *vec, int32_t *prev_exc,
                            int pitch_lag, int gain)
 {
     int i;
@@ -479,14 +479,14 @@ static void dss_sp_gen_exc(int32_t *vector, int32_t *prev_exc,
      * for both cases */
     if (pitch_lag < 72)
         for (i = 0; i < 72; i++)
-            vector[i] = prev_exc[pitch_lag - i % pitch_lag];
+            vec[i] = prev_exc[pitch_lag - i % pitch_lag];
     else
         for (i = 0; i < 72; i++)
-            vector[i] = prev_exc[pitch_lag - i];
+            vec[i] = prev_exc[pitch_lag - i];
 
     for (i = 0; i < 72; i++) {
-        int tmp = gain * vector[i] >> 11;
-        vector[i] = av_clip_int16(tmp);
+        int tmp = gain * vec[i] >> 11;
+        vec[i] = av_clip_int16(tmp);
     }
 }
 
@@ -502,15 +502,15 @@ static void dss_sp_scale_vector(int32_t *vec, int bits, int size)
             vec[i] = vec[i] << bits;
 }
 
-static void dss_sp_update_buf(int32_t *hist, int32_t *vector)
+static void dss_sp_update_buf(int32_t *hist, int32_t *vec)
 {
     int i;
 
     for (i = 114; i > 0; i--)
-        vector[i + 72] = vector[i];
+        vec[i + 72] = vec[i];
 
     for (i = 0; i < 72; i++)
-        vector[72 - i] = hist[i];
+        vec[72 - i] = hist[i];
 }
 
 static void dss_sp_shift_sq_sub(const int32_t *filter_buf,
