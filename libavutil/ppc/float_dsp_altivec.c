@@ -80,7 +80,6 @@ void ff_vector_fmul_window_altivec(float *dst, const float *src0,
 {
     vec_f zero, t0, t1, s0, s1, wi, wj;
     const vec_u8 reverse = vcprm(3, 2, 1, 0);
-    static const vec_u8 reverse = vcprm(3, 2, 1, 0);
     int i, j;
 
     dst  += len;
